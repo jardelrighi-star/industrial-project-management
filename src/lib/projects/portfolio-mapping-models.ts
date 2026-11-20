@@ -8,7 +8,7 @@ const aliases: Record<PortfolioField, string[]> = {
   name: ["Nome", "Nome do projeto", "Projeto", "Descrição do projeto"],
   approvedAmount: ["Orçamento aprovado", "Orçamento original aprovado", "Orçamento aprovado (R$)", "Orçamento original aprovado (R$)", "Valor aprovado"],
   unit: ["Unidade", "Unidade industrial"], department: ["Departamento"], type: ["Tipo", "Tipo do projeto"], category: ["Categoria"],
-  owner: ["Responsável", "Owner", "Responsável (Owner)"], manager: ["Gerente", "Gerente do projeto"],
+  owner: ["Gestor do projeto", "Responsável", "Owner", "Responsável (Owner)"], manager: ["Gerente", "Gerente do projeto"],
   start: ["Data inicial", "Data de início", "Início"], finish: ["Data final", "Data final planejada", "Data de término", "Término"],
   priority: ["Prioridade"], status: ["Status", "Status operacional", "Situação"], progress: ["Avanço físico", "Avanço físico (%)", "Progresso"],
 };

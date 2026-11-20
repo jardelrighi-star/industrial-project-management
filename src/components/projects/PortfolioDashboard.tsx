@@ -138,12 +138,12 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
           {departments.map((option) => <option key={option} value={option}>{option}</option>)}
         </select>
       </label>
-      <label className="text-sm font-medium">Responsável
+      <label className="text-sm font-medium">Gestor do projeto
         <select className={filterClass} value={selectedOwner} onChange={(event) => {
           setOwner(event.target.value);
           setProjectCode("");
         }}>
-          <option value="">Todos os responsáveis</option>
+          <option value="">Todos os gestores de projeto</option>
           {owners.map((option) => <option key={option} value={option}>{option}</option>)}
         </select>
       </label>

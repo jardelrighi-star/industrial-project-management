@@ -8,7 +8,7 @@ import { normalizePortfolioHeader, portfolioHeaderColumns } from "./portfolio-he
 
 export const PORTFOLIO_FIELDS = {
   code: "COD_INDORAMA *", name: "Nome do projeto *", approvedAmount: "Orçamento original aprovado (R$) *",
-  unit: "Unidade", department: "Departamento", type: "Tipo", category: "Categoria", owner: "Responsável", manager: "Gerente",
+  unit: "Unidade", department: "Departamento", type: "Tipo", category: "Categoria", owner: "Gestor do projeto", manager: "Gerente",
   start: "Data inicial", finish: "Data final", priority: "Prioridade", status: "Status operacional", progress: "Avanço físico (0 a 100)",
 } as const;
 export type PortfolioField = keyof typeof PORTFOLIO_FIELDS;

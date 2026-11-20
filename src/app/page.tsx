@@ -375,7 +375,7 @@ function openDetails(project: Project) {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Pesquisar por código, projeto ou responsável..."
+            placeholder="Pesquisar por código, projeto ou gestor do projeto..."
             className="mb-5 w-full rounded-lg border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-500"
           />
 
@@ -385,7 +385,7 @@ function openDetails(project: Project) {
   <tr>
     <th className="p-3">Código</th>
     <th className="p-3">Projeto</th>
-    <th className="p-3">Responsável</th>
+    <th className="p-3">Gestor do projeto</th>
     <th className="p-3">Orçamento</th>
     <th className="p-3">Realizado</th>
     <th className="p-3">Avanço físico</th>
@@ -517,7 +517,7 @@ function openDetails(project: Project) {
     {activeTab === "Resumo" && (
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {[
-          ["Responsável", selectedProject.owner],
+          ["Gestor do projeto", selectedProject.owner],
           ["Gerente", selectedProject.manager],
           ["Departamento", selectedProject.department],
           ["Tipo", selectedProject.type],
@@ -543,7 +543,7 @@ function openDetails(project: Project) {
         <h2 className="mb-2 text-lg font-bold">Cronograma do projeto</h2>
         <p className="text-sm text-slate-500">
           Nesta etapa, vamos desenvolver a importação do cronograma do Microsoft Project,
-          com atividades, responsáveis, prazos, avanço e acompanhamento de atrasos.
+          com atividades, atribuições, prazos, avanço e acompanhamento de atrasos.
         </p>
         <p className="mt-4 text-sm text-slate-400">
           Aguardando importação do cronograma.
@@ -677,7 +677,7 @@ function openDetails(project: Project) {
                   </label>
 
                   <label className="text-sm font-medium">
-                    Responsável (Owner)
+                    Gestor do projeto
                     <input
                       value={form.owner}
                       onChange={(e) => setForm({ ...form, owner: e.target.value })}
