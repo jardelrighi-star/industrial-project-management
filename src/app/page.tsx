@@ -25,6 +25,7 @@ const projectRepository = new LocalStorageProjectRepository();
 const financeRepository = new LocalStorageFinanceRepository();
 const manualBudgetRepository = new ManualProjectBudgetRepository();
 const emptyBudgetRequest: ManualBudgetRequest = { amount: "", correctionRequested: false, justification: "" };
+const projectTabs = ["Resumo", "Plano de Aquisições", "Financeiro", "Cronograma", "Documentação", "ATAS"] as const;
 
 const emptyProject: Project = {
   code: "",
@@ -79,7 +80,7 @@ function WorkspaceHome({ session, logout }: { session?: OnlineSession; logout?: 
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
 const [selectedProjectCode, setSelectedProjectCode] = useState<string | null>(null);
-const [activeTab, setActiveTab] = useState("Resumo");
+const [activeTab, setActiveTab] = useState<(typeof projectTabs)[number]>("Resumo");
 const [activeSection, setActiveSection] = useState("Dashboard");
 
 const selectedProject = projects.find(
@@ -562,10 +563,11 @@ function openDetails(project: Project) {
     </div>
 
     <div className="mb-6 flex flex-wrap gap-2 border-b">
-      {["Resumo", "Cronograma", "Financeiro", "Plano de aquisições", "Execução", "Histórico"].map((tab) => (
+      {projectTabs.map((tab) => (
         <button
           key={tab}
           onClick={() => setActiveTab(tab)}
+          aria-pressed={activeTab === tab}
           className={`border-b-2 px-4 py-3 text-sm font-medium ${
             activeTab === tab
               ? "border-blue-600 text-blue-600"
@@ -618,37 +620,25 @@ function openDetails(project: Project) {
       <FinanceProjectPanel projectCode={selectedProject.code} canReview={canManage} />
     )}
 
-    {activeTab === "Plano de aquisições" && (
+    {activeTab === "Plano de Aquisições" && (
       <ProcurementPlan key={selectedProject.code} projectCode={selectedProject.code}
         canManage={canManage}
         requisitions={financialState.status === "ready" ? financialState.data.requisitions : undefined}
         orders={financialState.status === "ready" ? financialState.data.orders : undefined} />
     )}
 
-    {activeTab === "Execução" && (
-      <div className="rounded-xl border bg-white p-6 shadow-sm">
-        <h2 className="mb-2 text-lg font-bold">Acompanhamento da execução</h2>
-        <p className="text-sm text-slate-500">
-          Espaço para registrar atualizações, dificuldades, pendências
-          e comentários sobre a execução do projeto.
-        </p>
-        <p className="mt-4 text-sm text-slate-400">
-          Módulo de acompanhamento em desenvolvimento.
-        </p>
-      </div>
+    {activeTab === "Documentação" && (
+      <section className="rounded-xl border bg-white p-6 shadow-sm" aria-labelledby="project-documentation-heading">
+        <h2 id="project-documentation-heading" className="mb-2 text-lg font-bold">Documentação</h2>
+        <p className="text-sm text-slate-500">Nenhum documento cadastrado para este projeto.</p>
+      </section>
     )}
 
-    {activeTab === "Histórico" && (
-      <div className="rounded-xl border bg-white p-6 shadow-sm">
-        <h2 className="mb-2 text-lg font-bold">Histórico do projeto</h2>
-        <p className="text-sm text-slate-500">
-          Futuramente, esta área apresentará o histórico de alterações,
-          atualizações de cronograma e registros financeiros.
-        </p>
-        <p className="mt-4 text-sm text-slate-400">
-          Histórico de auditoria ainda não implementado.
-        </p>
-      </div>
+    {activeTab === "ATAS" && (
+      <section className="rounded-xl border bg-white p-6 shadow-sm" aria-labelledby="project-minutes-heading">
+        <h2 id="project-minutes-heading" className="mb-2 text-lg font-bold">ATAS</h2>
+        <p className="text-sm text-slate-500">Nenhuma ata cadastrada para este projeto.</p>
+      </section>
     )}
   </div>
 )}
