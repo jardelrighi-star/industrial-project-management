@@ -1,14 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { officialBudget } from "../../lib/finance/budget-reconciliation";
 import { calculateCommittedBreakdown } from "../../lib/finance/calculations";
 import type { FinanceData } from "../../lib/finance/types";
 import type { Project } from "../../lib/projects/types";
+import { loadProcurementPlan } from "../../lib/projects/procurement-plan";
+import { loadOnlineProcurement } from "../../lib/online/operations";
+import { onlineMode } from "../../lib/online/state";
 
 export type PortfolioFinancialState = { status: "loading" | "error" } | { status: "ready"; data: FinanceData };
 
 const money = (cents: number) => (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const percent = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 2 });
 const filterClass = "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm";
 const compare = new Intl.Collator("pt-BR", { numeric: true }).compare;
 
@@ -24,6 +28,23 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
   const [department, setDepartment] = useState("");
   const [owner, setOwner] = useState("");
   const [projectCode, setProjectCode] = useState("");
+  const [procurement, setProcurement] = useState<ReturnType<typeof loadProcurementPlan> | null>();
+
+  useEffect(() => {
+    let active = true;
+    let request = 0;
+    function refresh() {
+      const current = ++request;
+      void Promise.resolve().then(() => onlineMode ? loadOnlineProcurement() : loadProcurementPlan()).then((plan) => {
+        if (active && request === current) setProcurement(plan);
+      }).catch(() => {
+        if (active && request === current) setProcurement(null);
+      });
+    }
+    refresh();
+    window.addEventListener("focus", refresh);
+    return () => { active = false; window.removeEventListener("focus", refresh); };
+  }, []);
   const { departments, selectedDepartment, owners, selectedOwner, projectOptions, selectedProject, visibleProjects } = useMemo(() => {
     const departments = distinctOptions(projects.map((project) => project.department));
     const selectedDepartment = departments.includes(department) ? department : "";
@@ -39,6 +60,18 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
     };
   }, [projects, department, owner, projectCode]);
   const hasFilter = Boolean(selectedDepartment || selectedOwner || selectedProject);
+  const visibleCodes = new Set(visibleProjects.map((project) => project.code));
+  const plannedPurchases = procurement?.purchases.filter((purchase) => visibleCodes.has(purchase.projectCode));
+  const plannedTotal = plannedPurchases?.reduce((sum, purchase) => sum + purchase.estimatedCents, 0);
+  const updatedBudgets = financialState.status === "ready"
+    ? new Map(financialState.data.budgets.filter((budget) => visibleCodes.has(budget.projectCode))
+      .map((budget) => [budget.projectCode, budget.updatedAmount]))
+    : new Map<string, number>();
+  const updatedTotal = [...updatedBudgets.values()].reduce((sum, cents) => sum + cents, 0);
+  const validPlannedTotal = typeof plannedTotal === "number" && Number.isSafeInteger(plannedTotal);
+  const plannedShare = validPlannedTotal && Number.isSafeInteger(updatedTotal) && updatedTotal > 0 &&
+    plannedPurchases?.every((purchase) => purchase.estimatedCents === 0 || updatedBudgets.has(purchase.projectCode))
+    ? plannedTotal / updatedTotal : null;
   const officialAmounts = financialState.status === "ready"
     ? visibleProjects.map((project) => officialBudget(project.code, financialState.data)).filter((value): value is number => value !== null)
     : [];
@@ -126,7 +159,7 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
         </>}
       </div>)}
     </section>
-    <section className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
+    <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-4">
       {financialCards.map(({ label, total, placeholder, breakdown }) => <div key={label}
         className={`rounded-xl border bg-white p-5 shadow-sm ${breakdown ? "flex flex-wrap items-start justify-between gap-x-4 gap-y-2" : ""}`}>
         <div>
@@ -142,6 +175,15 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
           </div>)}
         </dl>}
       </div>)}
+      <div className="rounded-xl border bg-white p-5 shadow-sm">
+        <p className="text-sm text-slate-500">Orçamento planejado</p>
+        <p className={`mt-3 text-lg font-semibold ${validPlannedTotal ? "text-slate-800" : "text-slate-400"}`}>
+          {validPlannedTotal ? money(plannedTotal) : procurement === undefined ? "Carregando…" : "Indisponível"}
+        </p>
+        <p className={`mt-1 text-xs ${plannedShare !== null && plannedShare > 1 ? "font-semibold text-red-700" : "text-slate-500"}`}>
+          {plannedShare === null ? "Percentual indisponível" : `${percent.format(plannedShare)} do orçamento atualizado`}
+        </p>
+      </div>
     </section>
   </>;
 }
