@@ -54,12 +54,18 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
   const budget = hasTotals && Number.isSafeInteger(totalBudget)
     ? officialAmounts.length ? money(totalBudget) : "Não cadastrado no financeiro"
     : "Indisponível";
+  const countsByStatus = new Map<string, number>();
+  for (const project of visibleProjects) {
+    const status = project.status || "Não informado";
+    countsByStatus.set(status, (countsByStatus.get(status) ?? 0) + 1);
+  }
+  const statuses = [...countsByStatus].sort(([first], [second]) => compare(first, second));
   const cards = [
     ["Projetos cadastrados", visibleProjects.length, hasFilter ? "No filtro selecionado" : "Carteira total"],
-    ["Em andamento", visibleProjects.filter((project) => project.status === "Em andamento").length, "Projetos ativos"],
+    ["Status dos projetos", null, null],
     ["Orçamento original aprovado", budget, `${officialAmounts.length} de ${visibleProjects.length} projetos com orçamento oficial`],
     ["Projetos com atenção", visibleProjects.filter((project) => project.status === "Atenção").length, "Requerem acompanhamento"],
-  ];
+  ] as const;
   const financialCards = [
     { label: "Custos realizados", total: Number.isSafeInteger(totalActual) ? totalActual : null },
     { label: "Comprometido", total: totalCommitted },
@@ -104,8 +110,17 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
     <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {cards.map(([label, value, detail]) => <div key={label} className="rounded-xl border bg-white p-5 shadow-sm">
         <p className="text-sm text-slate-500">{label}</p>
-        <p className="my-3 text-2xl font-bold">{value}</p>
-        <p className="text-xs text-slate-400">{detail}</p>
+        {value === null ? <div className="mt-2 h-16 overflow-y-auto text-xs" role="region" aria-label={label} tabIndex={statuses.length > 4 ? 0 : undefined}>
+          {statuses.length > 0 ? <dl className="pr-1">
+            {statuses.map(([status, count]) => <div key={status} className="flex justify-between gap-2">
+              <dt className="text-slate-600">{status}</dt>
+              <dd className="font-semibold tabular-nums">{count}</dd>
+            </div>)}
+          </dl> : <p className="text-slate-500">Nenhum projeto no filtro.</p>}
+        </div> : <>
+          <p className="my-3 text-2xl font-bold">{value}</p>
+          <p className="text-xs text-slate-400">{detail}</p>
+        </>}
       </div>)}
     </section>
     <section className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
