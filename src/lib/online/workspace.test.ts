@@ -6,6 +6,7 @@ import { calculateProjectFinancials, emptyFinanceData } from "../finance/calcula
 import { LocalStorageFinanceRepository } from "../finance/repository";
 import { previewCostImport } from "../finance/sankhya-import";
 import type { Project } from "../projects/types";
+import { loadProcurementPlan } from "../projects/procurement-plan";
 import { changeProcurement, changeReviews, replaceWorkspace, scopeWorkspace } from "./workspace";
 import { memoryStorage } from "./state";
 import type { Member } from "./server";
@@ -74,4 +75,23 @@ test("catalog and procurement mutations are scoped and only admins replace the g
   await assert.rejects(changeProcurement(manager, state.payload, { operation: "addType", projectCode: "P2", name: "Locação" }), /acesso/);
   await assert.rejects(changeProcurement(analyst, state.payload, { operation: "addType", projectCode: "P1", name: "Locação" }), /consulta/);
   assert.deepEqual(await changeProcurement(manager, state.payload, { operation: "addType", projectCode: "P1", name: "Locação" }), { type: "Locação" });
+});
+
+test("procurement saves, validates, and clears the optional SC opening forecast", async () => {
+  const { state } = fixture();
+  const draft = { title: "Material", description: "Compra de materiais", type: "Material", estimatedAmount: "50,00" };
+  const create = { operation: "create", projectCode: "P1" };
+  await assert.rejects(changeProcurement(manager, state.payload, {
+    ...create, draft: { ...draft, scOpeningForecast: "2027-02-30" },
+  }), /Data inválida/);
+  await changeProcurement(manager, state.payload, {
+    ...create, draft: { ...draft, scOpeningForecast: "2027-02-28" },
+  });
+  const scoped = await scopeWorkspace(manager, state);
+  const [purchase] = loadProcurementPlan(memoryStorage(scoped.payload)).purchases;
+  assert.equal(purchase.scOpeningForecast, "2027-02-28");
+  await changeProcurement(manager, state.payload, {
+    operation: "update", projectCode: "P1", id: purchase.id, draft: { ...draft, scOpeningForecast: "" },
+  });
+  assert.equal(loadProcurementPlan(memoryStorage(state.payload)).purchases[0].scOpeningForecast, undefined);
 });

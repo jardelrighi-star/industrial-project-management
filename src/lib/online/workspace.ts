@@ -122,6 +122,7 @@ export async function changeProcurement(member: Member, payload: WorkspacePayloa
     title: string(fields.title, 120), description: string(fields.description, 20000), type: string(fields.type, 200),
     estimatedAmount: string(fields.estimatedAmount, 100),
     scNumber: fields.scNumber === undefined ? undefined : string(fields.scNumber, 200),
+    scOpeningForecast: fields.scOpeningForecast === undefined ? undefined : string(fields.scOpeningForecast, 10),
     orderNumber: fields.orderNumber === undefined ? undefined : string(fields.orderNumber, 200),
   };
   if (input.operation === "create") await addPlannedPurchase(projectCode, draft, storage);

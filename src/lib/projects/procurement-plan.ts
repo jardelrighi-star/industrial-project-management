@@ -1,4 +1,4 @@
-import { parseBrlCents } from "../finance/import-values";
+import { parseBrlCents, parseExcelDate } from "../finance/import-values";
 import { withStorageWriteLock } from "../storage-write-lock";
 
 export const PROCUREMENT_PLAN_KEY = "industrial-project-procurement:v1";
@@ -12,11 +12,15 @@ export type PlannedPurchase = {
   type: string;
   estimatedCents: number;
   scNumber?: string;
+  scOpeningForecast?: string;
   orderNumber?: string;
 };
 
 type ProcurementPlan = { types: string[]; purchases: PlannedPurchase[] };
-type PurchaseDraft = { title: string; description: string; type: string; estimatedAmount: string; scNumber?: string; orderNumber?: string };
+type PurchaseDraft = {
+  title: string; description: string; type: string; estimatedAmount: string;
+  scNumber?: string; scOpeningForecast?: string; orderNumber?: string;
+};
 type StoragePort = Pick<Storage, "getItem" | "setItem">;
 
 function typeKey(value: string) {
@@ -29,6 +33,7 @@ function isPlannedPurchase(value: unknown): value is PlannedPurchase {
   return typeof row.id === "string" && !!row.id && typeof row.projectCode === "string" &&
     (row.title === undefined || (typeof row.title === "string" && !!row.title.trim())) &&
     (row.scNumber === undefined || typeof row.scNumber === "string") &&
+    (row.scOpeningForecast === undefined || typeof row.scOpeningForecast === "string") &&
     (row.orderNumber === undefined || typeof row.orderNumber === "string") &&
     typeof row.description === "string" && !!row.description.trim() && typeof row.type === "string" &&
     typeof row.estimatedCents === "number" && Number.isSafeInteger(row.estimatedCents) && row.estimatedCents >= 0;
@@ -72,6 +77,7 @@ async function savePlannedPurchase(
   if (!description) throw new Error("Descreva a contratação.");
   const estimatedCents = parseBrlCents(draft.estimatedAmount);
   const scNumber = draft.scNumber?.trim();
+  const scOpeningForecast = draft.scOpeningForecast?.trim();
   const orderNumber = draft.orderNumber?.trim();
   if (estimatedCents < 0) throw new Error("O valor estimado deve ser igual ou maior que zero.");
   return withStorageWriteLock(async () => {
@@ -81,6 +87,7 @@ async function savePlannedPurchase(
     const purchase = {
       id: purchaseId ?? crypto.randomUUID(), projectCode, title, description, type: draft.type, estimatedCents,
       ...(scNumber ? { scNumber } : {}),
+      ...(scOpeningForecast ? { scOpeningForecast: parseExcelDate(scOpeningForecast) } : {}),
       ...(orderNumber ? { orderNumber } : {}),
     };
     if (purchaseId !== undefined) {

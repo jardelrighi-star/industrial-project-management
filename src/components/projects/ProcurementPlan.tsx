@@ -13,6 +13,7 @@ import {
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const fieldClass = "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm";
 const missingScMessage = "SC ausente das listas de solicitações e pedidos do projeto.";
+const displayDate = (value?: string) => value ? value.split("-").reverse().join("/") : "—";
 
 export default function ProcurementPlan({ projectCode, requisitions, orders, canManage = true }: {
   projectCode: string;
@@ -30,6 +31,7 @@ export default function ProcurementPlan({ projectCode, requisitions, orders, can
   const [type, setType] = useState("");
   const [estimatedAmount, setEstimatedAmount] = useState("");
   const [scNumber, setScNumber] = useState("");
+  const [scOpeningForecast, setScOpeningForecast] = useState("");
   const [orderNumber, setOrderNumber] = useState("");
   const [addingType, setAddingType] = useState(false);
   const [newType, setNewType] = useState("");
@@ -60,6 +62,7 @@ export default function ProcurementPlan({ projectCode, requisitions, orders, can
     setType("");
     setEstimatedAmount("");
     setScNumber("");
+    setScOpeningForecast("");
     setOrderNumber("");
     setAddingType(false);
     setNewType("");
@@ -73,6 +76,7 @@ export default function ProcurementPlan({ projectCode, requisitions, orders, can
     setType(purchase.type);
     setEstimatedAmount(`${Math.floor(purchase.estimatedCents / 100)},${String(purchase.estimatedCents % 100).padStart(2, "0")}`);
     setScNumber(purchase.scNumber ?? "");
+    setScOpeningForecast(purchase.scOpeningForecast ?? "");
     setOrderNumber(purchase.orderNumber ?? "");
     setNotice("");
     setError("");
@@ -105,7 +109,7 @@ export default function ProcurementPlan({ projectCode, requisitions, orders, can
     setError("");
     setNotice("");
     try {
-      const draft = { title, description, type, estimatedAmount, scNumber, orderNumber };
+      const draft = { title, description, type, estimatedAmount, scNumber, scOpeningForecast, orderNumber };
       if (onlineMode) {
         const saved = await changeOnlineProcurement(projectCode, editing ? "update" : "create", { draft, id: editing?.id });
         setPlan(saved.plan);
@@ -229,7 +233,11 @@ export default function ProcurementPlan({ projectCode, requisitions, orders, can
                 placeholder="0,00" className={fieldClass} />
             </label>
           </div>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <label className="block text-sm font-medium">Previsão de abertura da SC
+              <input type="date" value={scOpeningForecast} onChange={(event) => setScOpeningForecast(event.target.value)}
+                className={fieldClass} />
+            </label>
             <label className="block text-sm font-medium">Número da SC
               <input value={scNumber} onChange={(event) => setScNumber(event.target.value)}
                 aria-describedby={missingCurrentSc ? "procurement-sc-unavailable" : undefined}
@@ -274,10 +282,11 @@ export default function ProcurementPlan({ projectCode, requisitions, orders, can
       <div className="overflow-x-auto rounded-xl border bg-white p-5 shadow-sm">
         <h3 className="mb-3 font-semibold">Contratações planejadas</h3>
         {purchases.length === 0 ? <p className="text-sm text-slate-500">Nenhuma aquisição planejada para este projeto.</p> :
-          <table aria-label="Contratações planejadas" className="w-full min-w-[740px] text-left text-sm">
+          <table aria-label="Contratações planejadas" className="w-full min-w-[870px] text-left text-sm">
             <thead className="bg-slate-50"><tr>
               <th scope="col" className="p-3">Título</th><th scope="col" className="p-3">Tipo</th>
               <th scope="col" className="p-3 text-right">Valor estimado</th>
+              <th scope="col" className="p-3">Previsão de abertura da SC</th>
               <th scope="col" className="p-3">Número da SC</th>
               <th scope="col" className="p-3">Número do pedido</th>
               <th scope="col" className="p-3 text-right">Saldo do pedido</th>
@@ -290,6 +299,7 @@ export default function ProcurementPlan({ projectCode, requisitions, orders, can
                 <th scope="row" className="p-3 align-top font-medium break-words">{purchase.title || "Sem título"}</th>
                 <td>{purchase.type}</td>
                 <td className="whitespace-nowrap text-right">{currency.format(purchase.estimatedCents / 100)}</td>
+                <td className="whitespace-nowrap">{displayDate(purchase.scOpeningForecast)}</td>
                 <td className={missing ? "font-medium text-red-800" : undefined}>
                   {purchase.scNumber || "—"}{missing && <span className="sr-only"> ({missingScMessage})</span>}
                 </td>
@@ -315,6 +325,7 @@ export default function ProcurementPlan({ projectCode, requisitions, orders, can
         </div>
         <div><dt className="text-slate-500">Tipo de contratação</dt><dd className="mt-1">{viewing.type}</dd></div>
         <div><dt className="text-slate-500">Valor estimado</dt><dd className="mt-1">{currency.format(viewing.estimatedCents / 100)}</dd></div>
+        <div><dt className="text-slate-500">Previsão de abertura da SC</dt><dd className="mt-1">{displayDate(viewing.scOpeningForecast)}</dd></div>
         <div>
           <dt className="text-slate-500">Número da SC</dt>
           <dd className={missingViewedSc ? "mt-1 font-medium text-red-800" : "mt-1"}>
