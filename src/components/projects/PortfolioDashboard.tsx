@@ -21,24 +21,24 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
   financialState: PortfolioFinancialState;
   actualCostsByProject: ReadonlyMap<string, number>;
 }) {
-  const [category, setCategory] = useState("");
+  const [department, setDepartment] = useState("");
   const [owner, setOwner] = useState("");
   const [projectCode, setProjectCode] = useState("");
-  const { categories, selectedCategory, owners, selectedOwner, projectOptions, selectedProject, visibleProjects } = useMemo(() => {
-    const categories = distinctOptions(projects.map((project) => project.category));
-    const selectedCategory = categories.includes(category) ? category : "";
-    const inCategory = projects.filter((project) => !selectedCategory || project.category === selectedCategory);
-    const owners = distinctOptions(inCategory.map((project) => project.owner));
+  const { departments, selectedDepartment, owners, selectedOwner, projectOptions, selectedProject, visibleProjects } = useMemo(() => {
+    const departments = distinctOptions(projects.map((project) => project.department));
+    const selectedDepartment = departments.includes(department) ? department : "";
+    const inDepartment = projects.filter((project) => !selectedDepartment || project.department === selectedDepartment);
+    const owners = distinctOptions(inDepartment.map((project) => project.owner));
     const selectedOwner = owners.includes(owner) ? owner : "";
-    const projectOptions = inCategory.filter((project) => !selectedOwner || project.owner === selectedOwner)
+    const projectOptions = inDepartment.filter((project) => !selectedOwner || project.owner === selectedOwner)
       .sort((first, second) => compare(first.code, second.code));
     const selectedProject = projectOptions.find((project) => project.code === projectCode);
     return {
-      categories, selectedCategory, owners, selectedOwner, projectOptions, selectedProject,
+      departments, selectedDepartment, owners, selectedOwner, projectOptions, selectedProject,
       visibleProjects: selectedProject ? [selectedProject] : projectOptions,
     };
-  }, [projects, category, owner, projectCode]);
-  const hasFilter = Boolean(selectedCategory || selectedOwner || selectedProject);
+  }, [projects, department, owner, projectCode]);
+  const hasFilter = Boolean(selectedDepartment || selectedOwner || selectedProject);
   const officialAmounts = financialState.status === "ready"
     ? visibleProjects.map((project) => officialBudget(project.code, financialState.data)).filter((value): value is number => value !== null)
     : [];
@@ -84,14 +84,14 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
       <div className="rounded-lg border bg-white px-4 py-2 text-sm">Unidade Industrial | 2026</div>
     </header>
     <div role="group" aria-label="Filtros do Dashboard" className="mb-6 grid gap-4 rounded-xl border bg-white p-4 shadow-sm sm:grid-cols-3">
-      <label className="text-sm font-medium">Categoria
-        <select className={filterClass} value={selectedCategory} onChange={(event) => {
-          setCategory(event.target.value);
+      <label className="text-sm font-medium">Departamento
+        <select className={filterClass} value={selectedDepartment} onChange={(event) => {
+          setDepartment(event.target.value);
           setOwner("");
           setProjectCode("");
         }}>
-          <option value="">Todas as categorias</option>
-          {categories.map((option) => <option key={option} value={option}>{option}</option>)}
+          <option value="">Todos os departamentos</option>
+          {departments.map((option) => <option key={option} value={option}>{option}</option>)}
         </select>
       </label>
       <label className="text-sm font-medium">Responsável
