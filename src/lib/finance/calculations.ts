@@ -79,8 +79,12 @@ function commitments(projectCodes: readonly string[], data: FinanceData) {
   return { approvedUnconvertedRequisitions, uninvoicedOrderBalance, totalCommitted: sum([approvedUnconvertedRequisitions, uninvoicedOrderBalance]) };
 }
 
+export function calculateCommittedBreakdown(projectCodes: readonly string[], input: FinanceData) {
+  return commitments(projectCodes, normalizeFinanceData(input));
+}
+
 export function calculateCommittedTotal(projectCodes: readonly string[], input: FinanceData): number {
-  return commitments(projectCodes, normalizeFinanceData(input)).totalCommitted;
+  return calculateCommittedBreakdown(projectCodes, input).totalCommitted;
 }
 
 export function calculateProjectFinancials(projectCode: string, input: FinanceData): ProjectFinancialSummary {

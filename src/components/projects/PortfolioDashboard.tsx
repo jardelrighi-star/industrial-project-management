@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { officialBudget } from "../../lib/finance/budget-reconciliation";
-import { calculateCommittedTotal } from "../../lib/finance/calculations";
+import { calculateCommittedBreakdown } from "../../lib/finance/calculations";
 import type { FinanceData } from "../../lib/finance/types";
 import type { Project } from "../../lib/projects/types";
 
@@ -44,9 +44,9 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
     : [];
   const totalBudget = officialAmounts.reduce((sum, cents) => sum + cents, 0);
   const totalActual = visibleProjects.reduce((sum, project) => sum + (actualCostsByProject.get(project.code) ?? 0), 0);
-  const totalCommitted = useMemo(() => {
+  const committed = useMemo(() => {
     if (financialState.status !== "ready") return null;
-    try { return calculateCommittedTotal(visibleProjects.map((project) => project.code), financialState.data); }
+    try { return calculateCommittedBreakdown(visibleProjects.map((project) => project.code), financialState.data); }
     catch { return null; }
   }, [visibleProjects, financialState]);
   const hasTotals = financialState.status === "ready";
@@ -68,7 +68,10 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
   ] as const;
   const financialCards = [
     { label: "Custos realizados", total: Number.isSafeInteger(totalActual) ? totalActual : null },
-    { label: "Comprometido", total: totalCommitted },
+    { label: "Comprometido", total: committed?.totalCommitted ?? null, breakdown: [
+      { label: "SC", amount: committed?.approvedUnconvertedRequisitions },
+      { label: "Pedidos", amount: committed?.uninvoicedOrderBalance },
+    ] },
     { label: "Saldo disponível", total: null, placeholder: "Aguardando integração" },
   ];
 
@@ -124,11 +127,20 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
       </div>)}
     </section>
     <section className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
-      {financialCards.map(({ label, total, placeholder }) => <div key={label} className="rounded-xl border bg-white p-5 shadow-sm">
-        <p className="text-sm text-slate-500">{label}</p>
-        <p className={`mt-3 text-lg font-semibold ${hasTotals && total !== null ? "text-slate-800" : "text-slate-400"}`}>
-          {hasTotals && total !== null ? money(total) : placeholder ?? missingTotal}
-        </p>
+      {financialCards.map(({ label, total, placeholder, breakdown }) => <div key={label}
+        className={`rounded-xl border bg-white p-5 shadow-sm ${breakdown ? "flex flex-wrap items-start justify-between gap-x-4 gap-y-2" : ""}`}>
+        <div>
+          <p className="text-sm text-slate-500">{label}</p>
+          <p className={`mt-3 text-lg font-semibold ${hasTotals && total !== null ? "text-slate-800" : "text-slate-400"}`}>
+            {hasTotals && total !== null ? money(total) : placeholder ?? missingTotal}
+          </p>
+        </div>
+        {breakdown && <dl aria-label="Composição do comprometido" className="space-y-1 text-xs">
+          {breakdown.map(({ label, amount }) => <div key={label} className="flex justify-between gap-3">
+            <dt className="text-slate-500">{label}</dt>
+            <dd className="whitespace-nowrap font-semibold tabular-nums">{amount === undefined ? "—" : money(amount)}</dd>
+          </div>)}
+        </dl>}
       </div>)}
     </section>
   </>;
