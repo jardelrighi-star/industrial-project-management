@@ -623,6 +623,9 @@ function openDetails(project: Project) {
     {activeTab === "Plano de Aquisições" && (
       <ProcurementPlan key={selectedProject.code} projectCode={selectedProject.code}
         canManage={canManage}
+        budgetCents={financialState.status === "ready"
+          ? financialState.data.budgets.find((budget) => budget.projectCode === selectedProject.code)?.updatedAmount ?? null
+          : undefined}
         requisitions={financialState.status === "ready" ? financialState.data.requisitions : undefined}
         orders={financialState.status === "ready" ? financialState.data.orders : undefined} />
     )}
