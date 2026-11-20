@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import FinanceProjectPanel from "../components/finance/FinanceProjectPanel";
 import ProcurementPlan from "../components/projects/ProcurementPlan";
+import PortfolioDashboard, { type PortfolioFinancialState } from "../components/projects/PortfolioDashboard";
 import ActualCostReviewQueue from "../components/finance/ActualCostReviewQueue";
 import ActualCostReport from "../components/finance/ActualCostReport";
 import ImportCenter from "../components/imports/ImportCenter";
@@ -11,9 +12,7 @@ import ImportCenter from "../components/imports/ImportCenter";
 import type { Project } from "../lib/projects/types";
 import { LocalStorageProjectRepository } from "../lib/projects/repository";
 import { LocalStorageFinanceRepository } from "../lib/finance/repository";
-import type { FinanceData } from "../lib/finance/types";
 import { officialBudget } from "../lib/finance/budget-reconciliation";
-import { calculateCommittedTotal } from "../lib/finance/calculations";
 import BudgetReconciliation from "../components/finance/BudgetReconciliation";
 import { PROJECT_KEY, FINANCE_KEY, TRANSACTION_KEY } from "../lib/coordinated-storage";
 import { ManualProjectBudgetRepository, planManualProjectSave, budgetInputValue, type ManualBudgetRequest, type ManualProjectSnapshot, type ManualProjectPlan } from "../lib/finance/manual-project-budget";
@@ -66,7 +65,7 @@ function WorkspaceHome({ session, logout }: { session?: OnlineSession; logout?: 
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
   const [budgetRevision, setBudgetRevision] = useState(0);
-  const [financialState, setFinancialState] = useState<{ status: "loading" | "error" } | { status: "ready"; data: FinanceData }>({ status: "loading" });
+  const [financialState, setFinancialState] = useState<PortfolioFinancialState>({ status: "loading" });
   const savingRef = useRef(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editingCode, setEditingCode] = useState<string | null>(null);
@@ -193,27 +192,6 @@ function openDetails(project: Project) {
         p.owner.toLowerCase().includes(term)
     );
   }, [projects, search]);
-
-  const activeCount = projects.filter(
-    (p) => p.status === "Em andamento"
-  ).length;
-
-  const officialAmounts = financialState.status === "ready" ? projects.map((p) => officialBudget(p.code, financialState.data)).filter((value): value is number => value !== null) : [];
-  const totalBudget = officialAmounts.reduce((sum, cents) => sum + cents, 0);
-  const totalActualCosts = projects.reduce((sum, project) => sum + (actualCostsByProject.get(project.code) ?? 0), 0);
-  const totalActualCostsLabel = financialState.status === "loading"
-    ? "Carregando…"
-    : financialState.status === "ready" && Number.isSafeInteger(totalActualCosts)
-      ? money(totalActualCosts / 100)
-      : "Indisponível";
-  const totalCommitted = useMemo(() => {
-    if (financialState.status !== "ready") return null;
-    try { return calculateCommittedTotal(projects.map((project) => project.code), financialState.data); }
-    catch { return null; }
-  }, [projects, financialState]);
-  const totalCommittedLabel = financialState.status === "loading"
-    ? "Carregando…"
-    : totalCommitted === null ? "Indisponível" : money(totalCommitted / 100);
 
   function openNew() {
     void openProjectForm(null);
@@ -374,56 +352,14 @@ function openDetails(project: Project) {
         {activeSection === "Análise de custos" && loaded && <ActualCostReviewQueue />}
         {activeSection === "Relatórios" && loaded && <ActualCostReport />}
         {activeSection === "Importações" && loaded && <ImportCenter projectCodes={projects.map((project) => project.code)} onImported={() => { setLoadAttempt((value) => value + 1); refreshBudgets(); }} />}
-        {loaded && !["Importações", "Reconciliação", "Análise de custos", "Relatórios"].includes(activeSection) && !selectedProject && (
-          <>
-          <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">Dashboard</h1>
-            <p className="mt-1 text-sm text-slate-500">
-              Visão geral da carteira de projetos industriais
-            </p>
-          </div>
-          <div className="rounded-lg border bg-white px-4 py-2 text-sm">
-            Unidade Industrial | 2026
-          </div>
-        </header>
-
-        <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            ["Projetos cadastrados", String(projects.length), "Carteira total"],
-            ["Em andamento", String(activeCount), "Projetos ativos"],
-            ["Orçamento original aprovado", financialState.status === "ready" && Number.isSafeInteger(totalBudget) ? (officialAmounts.length ? money(totalBudget / 100) : "Não cadastrado no financeiro") : "Indisponível", `${officialAmounts.length} de ${projects.length} projetos com orçamento oficial; os demais não compõem a soma`],
-            [
-              "Projetos com atenção",
-              String(projects.filter((p) => p.status === "Atenção").length),
-              "Requerem acompanhamento",
-            ],
-          ].map(([label, value, detail]) => (
-            <div key={label} className="rounded-xl border bg-white p-5 shadow-sm">
-              <p className="text-sm text-slate-500">{label}</p>
-              <p className="my-3 text-2xl font-bold">{value}</p>
-              <p className="text-xs text-slate-400">{detail}</p>
-            </div>
-          ))}
-        </section>
-
-        <section className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
-          {[
-            ["Custos realizados", totalActualCostsLabel],
-            ["Comprometido", totalCommittedLabel],
-            ["Saldo disponível", "Aguardando integração"],
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-xl border bg-white p-5 shadow-sm">
-              <p className="text-sm text-slate-500">{label}</p>
-              <p className={`mt-3 text-lg font-semibold ${financialState.status === "ready" && ((label === "Custos realizados" && Number.isSafeInteger(totalActualCosts)) || (label === "Comprometido" && totalCommitted !== null)) ? "text-slate-800" : "text-slate-400"}`}>{value}</p>
-            </div>
-          ))}
-        </section>
-
+        {loaded && activeSection === "Dashboard" && (
+          <PortfolioDashboard projects={projects} financialState={financialState} actualCostsByProject={actualCostsByProject} />
+        )}
+        {loaded && activeSection === "Projetos" && !selectedProject && (
         <section className="rounded-xl border bg-white p-5 shadow-sm">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-bold">Projetos cadastrados</h2>
+              <h1 className="text-2xl font-bold">Projetos</h1>
               <p className="text-sm text-slate-500">
                 Cadastro e acompanhamento dos projetos
               </p>
@@ -531,9 +467,8 @@ function openDetails(project: Project) {
             {filteredProjects.length} projeto(s) encontrado(s)
           </p>
         </section>
-</>
         )}
-        {activeSection !== "Importações" && selectedProject && (
+        {activeSection === "Projetos" && selectedProject && (
   <div>
     <div className="mb-6">
       <button
