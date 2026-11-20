@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { officialBudget } from "../../lib/finance/budget-reconciliation";
 import { calculateCommittedTotal } from "../../lib/finance/calculations";
 import type { FinanceData } from "../../lib/finance/types";
@@ -9,32 +9,56 @@ import type { Project } from "../../lib/projects/types";
 export type PortfolioFinancialState = { status: "loading" | "error" } | { status: "ready"; data: FinanceData };
 
 const money = (cents: number) => (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const filterClass = "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm";
+const compare = new Intl.Collator("pt-BR", { numeric: true }).compare;
+
+function distinctOptions(values: string[]) {
+  return [...new Set(values.filter(Boolean))].sort(compare);
+}
 
 export default function PortfolioDashboard({ projects, financialState, actualCostsByProject }: {
   projects: readonly Project[];
   financialState: PortfolioFinancialState;
   actualCostsByProject: ReadonlyMap<string, number>;
 }) {
+  const [category, setCategory] = useState("");
+  const [owner, setOwner] = useState("");
+  const [projectCode, setProjectCode] = useState("");
+  const { categories, selectedCategory, owners, selectedOwner, projectOptions, selectedProject, visibleProjects } = useMemo(() => {
+    const categories = distinctOptions(projects.map((project) => project.category));
+    const selectedCategory = categories.includes(category) ? category : "";
+    const inCategory = projects.filter((project) => !selectedCategory || project.category === selectedCategory);
+    const owners = distinctOptions(inCategory.map((project) => project.owner));
+    const selectedOwner = owners.includes(owner) ? owner : "";
+    const projectOptions = inCategory.filter((project) => !selectedOwner || project.owner === selectedOwner)
+      .sort((first, second) => compare(first.code, second.code));
+    const selectedProject = projectOptions.find((project) => project.code === projectCode);
+    return {
+      categories, selectedCategory, owners, selectedOwner, projectOptions, selectedProject,
+      visibleProjects: selectedProject ? [selectedProject] : projectOptions,
+    };
+  }, [projects, category, owner, projectCode]);
+  const hasFilter = Boolean(selectedCategory || selectedOwner || selectedProject);
   const officialAmounts = financialState.status === "ready"
-    ? projects.map((project) => officialBudget(project.code, financialState.data)).filter((value): value is number => value !== null)
+    ? visibleProjects.map((project) => officialBudget(project.code, financialState.data)).filter((value): value is number => value !== null)
     : [];
   const totalBudget = officialAmounts.reduce((sum, cents) => sum + cents, 0);
-  const totalActual = projects.reduce((sum, project) => sum + (actualCostsByProject.get(project.code) ?? 0), 0);
+  const totalActual = visibleProjects.reduce((sum, project) => sum + (actualCostsByProject.get(project.code) ?? 0), 0);
   const totalCommitted = useMemo(() => {
     if (financialState.status !== "ready") return null;
-    try { return calculateCommittedTotal(projects.map((project) => project.code), financialState.data); }
+    try { return calculateCommittedTotal(visibleProjects.map((project) => project.code), financialState.data); }
     catch { return null; }
-  }, [projects, financialState]);
+  }, [visibleProjects, financialState]);
   const hasTotals = financialState.status === "ready";
   const missingTotal = financialState.status === "loading" ? "Carregando…" : "Indisponível";
   const budget = hasTotals && Number.isSafeInteger(totalBudget)
     ? officialAmounts.length ? money(totalBudget) : "Não cadastrado no financeiro"
     : "Indisponível";
   const cards = [
-    ["Projetos cadastrados", projects.length, "Carteira total"],
-    ["Em andamento", projects.filter((project) => project.status === "Em andamento").length, "Projetos ativos"],
-    ["Orçamento original aprovado", budget, `${officialAmounts.length} de ${projects.length} projetos com orçamento oficial; os demais não compõem a soma`],
-    ["Projetos com atenção", projects.filter((project) => project.status === "Atenção").length, "Requerem acompanhamento"],
+    ["Projetos cadastrados", visibleProjects.length, hasFilter ? "No filtro selecionado" : "Carteira total"],
+    ["Em andamento", visibleProjects.filter((project) => project.status === "Em andamento").length, "Projetos ativos"],
+    ["Orçamento original aprovado", budget, `${officialAmounts.length} de ${visibleProjects.length} projetos com orçamento oficial`],
+    ["Projetos com atenção", visibleProjects.filter((project) => project.status === "Atenção").length, "Requerem acompanhamento"],
   ];
   const financialCards = [
     { label: "Custos realizados", total: Number.isSafeInteger(totalActual) ? totalActual : null },
@@ -50,6 +74,33 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
       </div>
       <div className="rounded-lg border bg-white px-4 py-2 text-sm">Unidade Industrial | 2026</div>
     </header>
+    <div role="group" aria-label="Filtros do Dashboard" className="mb-6 grid gap-4 rounded-xl border bg-white p-4 shadow-sm sm:grid-cols-3">
+      <label className="text-sm font-medium">Categoria
+        <select className={filterClass} value={selectedCategory} onChange={(event) => {
+          setCategory(event.target.value);
+          setOwner("");
+          setProjectCode("");
+        }}>
+          <option value="">Todas as categorias</option>
+          {categories.map((option) => <option key={option} value={option}>{option}</option>)}
+        </select>
+      </label>
+      <label className="text-sm font-medium">Responsável
+        <select className={filterClass} value={selectedOwner} onChange={(event) => {
+          setOwner(event.target.value);
+          setProjectCode("");
+        }}>
+          <option value="">Todos os responsáveis</option>
+          {owners.map((option) => <option key={option} value={option}>{option}</option>)}
+        </select>
+      </label>
+      <label className="text-sm font-medium">Projeto
+        <select className={filterClass} value={selectedProject?.code ?? ""} onChange={(event) => setProjectCode(event.target.value)}>
+          <option value="">Todos os projetos</option>
+          {projectOptions.map((project) => <option key={project.code} value={project.code}>{project.code} - {project.name}</option>)}
+        </select>
+      </label>
+    </div>
     <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {cards.map(([label, value, detail]) => <div key={label} className="rounded-xl border bg-white p-5 shadow-sm">
         <p className="text-sm text-slate-500">{label}</p>
