@@ -15,6 +15,13 @@ const money = (cents: number) => (cents / 100).toLocaleString("pt-BR", { style: 
 const percent = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 2 });
 const filterClass = "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm";
 const compare = new Intl.Collator("pt-BR", { numeric: true }).compare;
+const calendar = new Intl.DateTimeFormat("pt-BR", {
+  timeZone: "America/Sao_Paulo",
+  calendar: "gregory",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
 
 function distinctOptions(values: string[]) {
   return [...new Set(values.filter(Boolean))].sort(compare);
@@ -93,11 +100,16 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
     countsByStatus.set(status, (countsByStatus.get(status) ?? 0) + 1);
   }
   const statuses = [...countsByStatus].sort(([first], [second]) => compare(first, second));
+  const { year, month, day } = Object.fromEntries(calendar.formatToParts().map(({ type, value }) => [type, value]));
+  const today = `${year}-${month}-${day}`;
+  const overdueCount = visibleProjects.filter((project) =>
+    project.status !== "Concluído" && project.status !== "Cancelado" &&
+    /^\d{4}-\d{2}-\d{2}$/.test(project.finish) && project.finish < today,
+  ).length;
   const cards = [
     ["Projetos cadastrados", visibleProjects.length, hasFilter ? "No filtro selecionado" : "Carteira total"],
     ["Status dos projetos", null, null],
-    ["Orçamento original aprovado", budget, `${officialAmounts.length} de ${visibleProjects.length} projetos com orçamento oficial`],
-    ["Projetos com atenção", visibleProjects.filter((project) => project.status === "Atenção").length, "Requerem acompanhamento"],
+    ["Projetos atrasados", overdueCount, "Prazo planejado vencido"],
   ] as const;
   const financialCards = [
     { label: "Custos realizados", total: Number.isSafeInteger(totalActual) ? totalActual : null },
@@ -105,7 +117,6 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
       { label: "SC", amount: committed?.approvedUnconvertedRequisitions },
       { label: "Pedidos", amount: committed?.uninvoicedOrderBalance },
     ] },
-    { label: "Saldo disponível", total: null, placeholder: "Aguardando integração" },
   ];
 
   return <>
@@ -143,29 +154,18 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
         </select>
       </label>
     </div>
-    <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      {cards.map(([label, value, detail]) => <div key={label} className="rounded-xl border bg-white p-5 shadow-sm">
-        <p className="text-sm text-slate-500">{label}</p>
-        {value === null ? <div className="mt-2 h-16 overflow-y-auto text-xs" role="region" aria-label={label} tabIndex={statuses.length > 4 ? 0 : undefined}>
-          {statuses.length > 0 ? <dl className="pr-1">
-            {statuses.map(([status, count]) => <div key={status} className="flex justify-between gap-2">
-              <dt className="text-slate-600">{status}</dt>
-              <dd className="font-semibold tabular-nums">{count}</dd>
-            </div>)}
-          </dl> : <p className="text-slate-500">Nenhum projeto no filtro.</p>}
-        </div> : <>
-          <p className="my-3 text-2xl font-bold">{value}</p>
-          <p className="text-xs text-slate-400">{detail}</p>
-        </>}
-      </div>)}
-    </section>
     <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-4">
-      {financialCards.map(({ label, total, placeholder, breakdown }) => <div key={label}
+      <div className="rounded-xl border bg-white p-5 shadow-sm">
+        <p className="text-sm text-slate-500">Orçamento original aprovado</p>
+        <p className="mt-3 text-lg font-semibold">{budget}</p>
+        <p className="mt-1 text-xs text-slate-500">{officialAmounts.length} de {visibleProjects.length} projetos com orçamento oficial</p>
+      </div>
+      {financialCards.map(({ label, total, breakdown }) => <div key={label}
         className={`rounded-xl border bg-white p-5 shadow-sm ${breakdown ? "flex flex-wrap items-start justify-between gap-x-4 gap-y-2" : ""}`}>
         <div>
           <p className="text-sm text-slate-500">{label}</p>
           <p className={`mt-3 text-lg font-semibold ${hasTotals && total !== null ? "text-slate-800" : "text-slate-400"}`}>
-            {hasTotals && total !== null ? money(total) : placeholder ?? missingTotal}
+            {hasTotals && total !== null ? money(total) : missingTotal}
           </p>
         </div>
         {breakdown && <dl aria-label="Composição do comprometido" className="space-y-1 text-xs">
@@ -184,6 +184,22 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
           {plannedShare === null ? "Percentual indisponível" : `${percent.format(plannedShare)} do orçamento atualizado`}
         </p>
       </div>
+    </section>
+    <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-4">
+      {cards.map(([label, value, detail]) => <div key={label} className="rounded-xl border bg-white p-5 shadow-sm">
+        <p className="text-sm text-slate-500">{label}</p>
+        {value === null ? <div className="mt-2 h-16 overflow-y-auto text-xs" role="region" aria-label={label} tabIndex={statuses.length > 4 ? 0 : undefined}>
+          {statuses.length > 0 ? <dl className="pr-1">
+            {statuses.map(([status, count]) => <div key={status} className="flex justify-between gap-2">
+              <dt className="text-slate-600">{status}</dt>
+              <dd className="font-semibold tabular-nums">{count}</dd>
+            </div>)}
+          </dl> : <p className="text-slate-500">Nenhum projeto no filtro.</p>}
+        </div> : <>
+          <p className="my-3 text-2xl font-bold">{value}</p>
+          <p className="text-xs text-slate-400">{detail}</p>
+        </>}
+      </div>)}
     </section>
   </>;
 }
