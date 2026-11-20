@@ -11,6 +11,7 @@ import {
 } from "../../lib/projects/procurement-plan";
 
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+const percent = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 2 });
 const fieldClass = "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm";
 const missingScMessage = "SC ausente das listas de solicitações e pedidos do projeto.";
 const displayDate = (value?: string) => value ? value.split("-").reverse().join("/") : "—";
@@ -148,6 +149,7 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
   const estimatedTotal = purchases.reduce((total, purchase) => total + purchase.estimatedCents, 0);
   const validEstimatedTotal = Number.isSafeInteger(estimatedTotal);
   const budgetDifference = typeof budgetCents === "number" && validEstimatedTotal ? budgetCents - estimatedTotal : undefined;
+  const plannedShare = typeof budgetCents === "number" && budgetCents > 0 && validEstimatedTotal ? estimatedTotal / budgetCents : undefined;
   const scCodes = requisitions && new Set(requisitions.filter((sc) => sc.projectCode === projectCode).map((sc) => sc.code));
   const balancesByOrder = new Map<string, number | null>();
   const ordersBySc = new Map<string, { order: PurchaseOrder; balance: number }[]>();
@@ -208,7 +210,7 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
     {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {notice && <p role="status" className="rounded-lg bg-blue-50 p-3 text-sm text-blue-900">{notice}</p>}
     {!plan ? (!error && <p role="status" className="text-sm text-slate-500">Carregando plano de aquisições…</p>) : <>
-      <dl aria-label="Comparação entre o orçamento e o plano de aquisições" className="grid gap-4 sm:grid-cols-3">
+      <dl aria-label="Comparação entre o orçamento e o plano de aquisições" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-xl border bg-white p-4 shadow-sm">
           <dt className="text-sm text-slate-500">Orçamento atualizado</dt>
           <dd className="mt-2 break-words text-lg font-semibold">
@@ -218,6 +220,12 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
         <div className="rounded-xl border bg-white p-4 shadow-sm">
           <dt className="text-sm text-slate-500">Total estimado do plano</dt>
           <dd className="mt-2 break-words text-lg font-semibold">{validEstimatedTotal ? currency.format(estimatedTotal / 100) : "Não disponível"}</dd>
+        </div>
+        <div className="rounded-xl border bg-white p-4 shadow-sm">
+          <dt className="text-sm text-slate-500">Percentual do orçamento</dt>
+          <dd className={`mt-2 break-words text-lg font-semibold ${plannedShare !== undefined && plannedShare > 1 ? "text-red-700" : ""}`}>
+            {plannedShare === undefined ? "Não disponível" : percent.format(plannedShare)}
+          </dd>
         </div>
         <div className="rounded-xl border bg-white p-4 shadow-sm">
           <dt className="text-sm text-slate-500">Diferença para o orçamento</dt>
