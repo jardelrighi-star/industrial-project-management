@@ -115,6 +115,7 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
   ).length;
   let overdueScCount: number | null = null;
   let missingOrderForecastCount: number | null = null;
+  let overdueOrderCount: number | null = null;
   if (financialState.status === "ready" && planning && plannedPurchases) {
     const confirmed = new Set(financialState.data.requisitions.map((sc) => scOrderKey(sc.projectCode, sc.code)));
     for (const order of financialState.data.orders) {
@@ -123,15 +124,21 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
     overdueScCount = plannedPurchases.filter((purchase) => isScOpeningOverdue(purchase, today,
       !confirmed.has(scOrderKey(purchase.projectCode, purchase.scNumber?.trim() ?? "")),
     )).length;
-    const scheduledOrders = new Set(planning.orderForecasts.map((row) => scOrderKey(row.projectCode, row.scNumber)));
-    missingOrderForecastCount = scsAwaitingOrders(financialState.data).filter((sc) =>
-      visibleCodes.has(sc.projectCode) && !scheduledOrders.has(scOrderKey(sc.projectCode, sc.code)),
-    ).length;
+    const orderForecastDates = new Map(planning.orderForecasts.map((row) => [scOrderKey(row.projectCode, row.scNumber), row.forecastDate]));
+    missingOrderForecastCount = 0;
+    overdueOrderCount = 0;
+    for (const sc of scsAwaitingOrders(financialState.data)) {
+      if (!visibleCodes.has(sc.projectCode)) continue;
+      const date = orderForecastDates.get(scOrderKey(sc.projectCode, sc.code));
+      if (!date) missingOrderForecastCount++;
+      else if (date < today) overdueOrderCount++;
+    }
   }
-  const missingContractForecastCount = planning?.contracts.filter((contract) =>
-    visibleCodes.has(contract.projectCode) && contract.required && !contract.completionDate,
-  ).length;
+  const requiredContracts = planning?.contracts.filter((contract) => visibleCodes.has(contract.projectCode) && contract.required);
+  const missingContractForecastCount = requiredContracts?.filter((contract) => !contract.completionDate).length;
+  const overdueContractCount = requiredContracts?.filter((contract) => contract.completionDate && contract.completionDate < today).length;
   const pendingStatus = planning === null || financialState.status === "error" ? "Indisponível" : "Carregando…";
+  const contractStatus = planning === null ? "Indisponível" : "Carregando…";
   const overdueScValue = overdueScCount ?? pendingStatus;
   const cards = [
     ["Projetos cadastrados", visibleProjects.length, hasFilter ? "No filtro selecionado" : "Carteira total"],
@@ -139,7 +146,9 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
     ["Projetos atrasados", overdueCount, "Prazo planejado vencido"],
     ["SC em atraso", overdueScValue, "Contratações com abertura da SC vencida"],
     ["SCs sem previsão de pedido", missingOrderForecastCount ?? pendingStatus, "Solicitações ainda sem pedido e sem data prevista"],
-    ["Contratos sem previsão de conclusão", missingContractForecastCount ?? (planning === null ? "Indisponível" : "Carregando…"), "SCs marcadas como necessitando contrato"],
+    ["Contratos sem previsão de conclusão", missingContractForecastCount ?? contractStatus, "SCs marcadas como necessitando contrato"],
+    ["Pedidos em atraso", overdueOrderCount ?? pendingStatus, "SCs sem pedido com previsão vencida"],
+    ["Contratos em atraso", overdueContractCount ?? contractStatus, "Contratos necessários com previsão vencida"],
   ] as const;
   const financialCards = [
     { label: "Custos realizados", total: Number.isSafeInteger(totalActual) ? totalActual : null },
