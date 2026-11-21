@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
-import type { WorkspaceRole, WorkspaceState } from "./state";
+import { workspaceRoles, type WorkspaceRole, type WorkspaceState } from "./state";
 
 export class OnlineError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -39,7 +39,7 @@ export async function requireMember(): Promise<Member> {
   const { data: membership, error: membershipError } = await databaseClient().from("ipm_memberships")
     .select("workspace_id, role, project_codes").eq("user_id", user.id).maybeSingle();
   if (membershipError) throw new OnlineError(503, "Não foi possível consultar a configuração de acesso.");
-  if (!membership || !["admin", "manager", "analyst"].includes(membership.role)) {
+  if (!membership || !workspaceRoles.includes(membership.role)) {
     throw new OnlineError(403, "Sua conta ainda não tem acesso à carteira.");
   }
   return { workspaceId: membership.workspace_id, userId: user.id, email: user.email, role: membership.role, projectCodes: membership.project_codes };

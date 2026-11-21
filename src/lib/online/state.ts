@@ -1,7 +1,9 @@
 import type { StoragePort } from "../coordinated-storage";
 
 export const onlineMode = process.env.NEXT_PUBLIC_APP_MODE === "online";
-export type WorkspaceRole = "admin" | "manager" | "analyst";
+export const workspaceRoles = ["admin", "manager", "analyst", "buyer"] as const;
+export type WorkspaceRole = (typeof workspaceRoles)[number];
+export function canScheduleOrders(role: WorkspaceRole) { return role === "admin" || role === "buyer"; }
 export type OnlineSession = { email: string; role: WorkspaceRole };
 export type WorkspacePayload = Record<string, string>;
 export type WorkspaceState = { version: number; payload: WorkspacePayload };

@@ -5,10 +5,11 @@ import { actualCostReviewIdentity } from "../finance/actual-cost-review";
 import { calculateProjectFinancials, emptyFinanceData } from "../finance/calculations";
 import { LocalStorageFinanceRepository } from "../finance/repository";
 import { previewCostImport } from "../finance/sankhya-import";
+import { loadScOrderForecasts, SC_ORDER_FORECAST_KEY } from "../finance/sc-order-forecast";
 import type { Project } from "../projects/types";
 import { loadProcurementPlan } from "../projects/procurement-plan";
-import { changeProcurement, changeReviews, replaceWorkspace, scopeWorkspace } from "./workspace";
-import { memoryStorage } from "./state";
+import { changeProcurement, changeReviews, changeScOrderForecast, replaceWorkspace, scopeWorkspace } from "./workspace";
+import { memoryStorage, type WorkspaceState } from "./state";
 import type { Member } from "./server";
 
 const manager: Member = { workspaceId: "w1", userId: "u1", email: "gestor@example.com", role: "manager", projectCodes: ["P1"] };
@@ -30,10 +31,10 @@ function fixture() {
       AD_PROJ_IHBL: code, CODEMP: 1, NUNOTA: 100 + index, NUMNOTA: 200 + index, CODPROD: 2, CODCENCUS: 3, DTENTSAI: 46000, VLRTOT: 50,
     } })),
   }, ["P1", "P2"], finance, time).rows.map((row) => row.cost!);
-  return {
-    finance,
-    state: { version: 1, payload: { [PROJECT_KEY]: JSON.stringify(projects), [FINANCE_KEY]: JSON.stringify({ version: 1, data: finance }) } },
+  const state: WorkspaceState = {
+    version: 1, payload: { [PROJECT_KEY]: JSON.stringify(projects), [FINANCE_KEY]: JSON.stringify({ version: 1, data: finance }) },
   };
+  return { finance, state };
 }
 
 test("scoped reads preserve the allowed project's balance and withhold the other portfolio", async () => {
@@ -94,4 +95,33 @@ test("procurement saves, validates, and clears the optional SC opening forecast"
     operation: "update", projectCode: "P1", id: purchase.id, draft: { ...draft, scOpeningForecast: "" },
   });
   assert.equal(loadProcurementPlan(memoryStorage(state.payload)).purchases[0].scOpeningForecast, undefined);
+});
+
+test("buyers schedule pending SCs in their projects, and later imports preserve their forecast", async () => {
+  const buyer: Member = { ...manager, role: "buyer" };
+  const { state, finance } = fixture();
+  finance.requisitions = ["P1", "P2"].map((projectCode) => ({
+    code: "123", projectCode, amount: 500, objective: "", approvalStatus: "approved",
+    convertedOrderNumber: null, traceability: { sourceSystem: "Sankhya", sourceRecordId: projectCode, recordedAt: time, externalReference: null },
+  }));
+  state.payload[FINANCE_KEY] = JSON.stringify({ version: 1, data: finance });
+  const request = { projectCode: "P1", scNumber: "123", forecastDate: "2027-03-10", expectedDate: null };
+  await assert.rejects(changeScOrderForecast(manager, state.payload, request), /Apenas Compras/);
+  await assert.rejects(changeScOrderForecast(buyer, state.payload, { ...request, projectCode: "P2" }), /acesso/);
+  await assert.rejects(changeProcurement(buyer, state.payload, { operation: "addType", projectCode: "P1", name: "Locação" }), /consulta/);
+  await assert.rejects(changeScOrderForecast(buyer, state.payload, { ...request, forecastDate: "2027-02-30" }), /Data inválida/);
+  await changeScOrderForecast(buyer, state.payload, request);
+  await assert.rejects(changeScOrderForecast(buyer, state.payload, { ...request, forecastDate: "2027-03-11" }), /mudou/);
+  await changeScOrderForecast(admin, state.payload, { ...request, projectCode: "P2" });
+  const scopedBuyer = await scopeWorkspace(buyer, state);
+  assert.deepEqual(loadScOrderForecasts(memoryStorage(scopedBuyer.payload)), [{ projectCode: "P1", scNumber: "123", forecastDate: "2027-03-10" }]);
+  assert.equal((await scopeWorkspace(manager, state)).payload[SC_ORDER_FORECAST_KEY], undefined);
+
+  const imported = await replaceWorkspace(admin, state, {
+    version: state.version, changes: { [FINANCE_KEY]: JSON.stringify({ version: 1, data: {
+      ...finance, requisitions: [{ ...finance.requisitions[0], convertedOrderNumber: "912" }, finance.requisitions[1]],
+    } }) },
+  });
+  assert.equal(imported[SC_ORDER_FORECAST_KEY], state.payload[SC_ORDER_FORECAST_KEY]);
+  await assert.rejects(changeScOrderForecast(buyer, imported, { ...request, expectedDate: "2027-03-10" }), /sem pedido/);
 });

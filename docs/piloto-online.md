@@ -35,6 +35,8 @@ where email = 'gestor@empresa.example';
 
 Use `analyst` para o analista. O administrador cadastra projetos, importa planilhas e reconcilia orçamentos. Gestores avaliam custos e mantêm o plano de aquisições nos projetos atribuídos. Analistas decidem as contestações nos projetos atribuídos. As decisões registram o ID e o e-mail da conta autenticada.
 
+Para habilitar o time de **Compras**, aplique [a migração do perfil Compras](../supabase/migrations/202611200002_buyer_role.sql) e use `buyer` no cadastro de membros. Os usuários desse perfil informam a previsão de geração do pedido para SCs sem pedido dos projetos atribuídos. Os administradores também podem acessar a seção.
+
 ## Configurar o Next.js
 
 Copie [o exemplo de variáveis](../.env.example) para `.env.local` e preencha os valores do Supabase. Na hospedagem, configure as mesmas quatro variáveis no ambiente de homologação e gere um novo build. Somente `NEXT_PUBLIC_APP_MODE` é destinado ao cliente. A chave secreta é usada no servidor para consultar a associação e acessar o snapshot. As tabelas têm RLS habilitada e os papéis públicos do Supabase ficam sem acesso direto.

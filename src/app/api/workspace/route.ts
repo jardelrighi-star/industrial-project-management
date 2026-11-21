@@ -1,7 +1,8 @@
 import { FINANCE_KEY } from "../../../lib/coordinated-storage";
 import { PROCUREMENT_PLAN_KEY } from "../../../lib/projects/procurement-plan";
+import { SC_ORDER_FORECAST_KEY } from "../../../lib/finance/sc-order-forecast";
 import { commitWorkspace, loadWorkspace, OnlineError, onlineRoute, readRequest, requireMember, response } from "../../../lib/online/server";
-import { changeProcurement, changeReviews, replaceWorkspace, scopeWorkspace } from "../../../lib/online/workspace";
+import { changeProcurement, changeReviews, changeScOrderForecast, replaceWorkspace, scopeWorkspace } from "../../../lib/online/workspace";
 
 export function GET() {
   return onlineRoute(async () => {
@@ -28,6 +29,9 @@ export function POST(request: Request) {
         case "review":
           await changeReviews(member, payload, input);
           break;
+        case "scOrderForecast":
+          await changeScOrderForecast(member, payload, input);
+          break;
         default:
           throw new OnlineError(400, "Operação desconhecida.");
       }
@@ -39,7 +43,7 @@ export function POST(request: Request) {
     const scoped = input.action === "replace" ? null : await scopeWorkspace(member, { ...current, payload });
     await commitWorkspace(member.workspaceId, { version: current.version, payload });
     if (scoped) {
-      const key = input.action === "review" ? FINANCE_KEY : PROCUREMENT_PLAN_KEY;
+      const key = input.action === "review" ? FINANCE_KEY : input.action === "scOrderForecast" ? SC_ORDER_FORECAST_KEY : PROCUREMENT_PLAN_KEY;
       result.payload = { [key]: scoped.payload[key] };
     }
     return response(result);

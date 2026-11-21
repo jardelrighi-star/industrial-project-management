@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import FinanceProjectPanel from "../components/finance/FinanceProjectPanel";
 import ProcurementPlan from "../components/projects/ProcurementPlan";
 import PortfolioDashboard, { type PortfolioFinancialState } from "../components/projects/PortfolioDashboard";
+import Purchasing from "../components/finance/Purchasing";
 import ActualCostReviewQueue from "../components/finance/ActualCostReviewQueue";
 import ActualCostReport from "../components/finance/ActualCostReport";
 import ImportCenter from "../components/imports/ImportCenter";
@@ -18,7 +19,7 @@ import { PROJECT_KEY, FINANCE_KEY, TRANSACTION_KEY } from "../lib/coordinated-st
 import { ManualProjectBudgetRepository, planManualProjectSave, budgetInputValue, type ManualBudgetRequest, type ManualProjectSnapshot, type ManualProjectPlan } from "../lib/finance/manual-project-budget";
 import ManualBudgetFields from "../components/finance/ManualBudgetFields";
 import OnlineGate from "../components/OnlineGate";
-import { onlineMode, type OnlineSession } from "../lib/online/state";
+import { canScheduleOrders, onlineMode, type OnlineSession } from "../lib/online/state";
 
 const projectRepository = new LocalStorageProjectRepository();
 const financeRepository = new LocalStorageFinanceRepository();
@@ -58,6 +59,7 @@ function WorkspaceHome({ session, logout }: { session?: OnlineSession; logout?: 
   const canAdminister = !session || session.role === "admin";
   const canAnalyze = canAdminister || session?.role === "analyst";
   const canManage = canAdminister || session?.role === "manager";
+  const canAccessPurchasing = !session || canScheduleOrders(session.role);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState("");
@@ -293,6 +295,7 @@ function openDetails(project: Project) {
           {[
             ["▦", "Dashboard"],
             ["▤", "Projetos"],
+            ["▣", "Compras"],
             ["⇩", "Importações"],
             ["▦", "Cronogramas"],
             ["R$", "Financeiro"],
@@ -303,12 +306,13 @@ function openDetails(project: Project) {
           ].filter(([, label]) => {
             if (label === "Importações" || label === "Reconciliação") return canAdminister;
             if (label === "Análise de custos") return canAnalyze;
+            if (label === "Compras") return canAccessPurchasing;
             return true;
           }).map(([icon, label]) => (
             <button
               key={label}
               onClick={() => {
-                if (["Dashboard", "Projetos", "Importações", "Reconciliação", "Análise de custos", "Relatórios"].includes(label)) {
+                if (["Dashboard", "Projetos", "Compras", "Importações", "Reconciliação", "Análise de custos", "Relatórios"].includes(label)) {
                   setActiveSection(label);
                   setSelectedProjectCode(null);
                   setFormOpen(false);
@@ -350,6 +354,10 @@ function openDetails(project: Project) {
         {financialState.status === "error" && <div role="alert" className="mb-5 rounded-lg bg-red-50 p-4 text-red-800">Não foi possível consultar o orçamento financeiro. Nenhum valor legado será utilizado. <button type="button" onClick={refreshBudgets} className="underline">Tentar novamente</button></div>}
         {activeSection === "Reconciliação" && loaded && <BudgetReconciliation onConfirmed={refreshBudgets} />}
         {activeSection === "Análise de custos" && loaded && <ActualCostReviewQueue />}
+        {activeSection === "Compras" && canAccessPurchasing && loaded && (
+          <Purchasing projects={projects} finance={financialState.status === "ready" ? financialState.data : undefined}
+            financeUnavailable={financialState.status === "error"} />
+        )}
         {activeSection === "Relatórios" && loaded && <ActualCostReport />}
         {activeSection === "Importações" && loaded && <ImportCenter projectCodes={projects.map((project) => project.code)} onImported={() => { setLoadAttempt((value) => value + 1); refreshBudgets(); }} />}
         {loaded && activeSection === "Dashboard" && (
