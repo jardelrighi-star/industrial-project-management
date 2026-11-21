@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { officialBudget } from "../../lib/finance/budget-reconciliation";
-import { calculateCommittedBreakdown } from "../../lib/finance/calculations";
+import { calculateCommittedBreakdown, orderRequisitionCodes } from "../../lib/finance/calculations";
 import type { FinanceData } from "../../lib/finance/types";
 import type { Project } from "../../lib/projects/types";
 import { projectCalendarDate } from "../../lib/projects/project-date";
-import { loadProcurementPlan } from "../../lib/projects/procurement-plan";
+import { isScOpeningOverdue, loadProcurementPlan } from "../../lib/projects/procurement-plan";
 import { loadOnlineProcurement } from "../../lib/online/operations";
 import { onlineMode } from "../../lib/online/state";
 
@@ -16,6 +16,7 @@ const money = (cents: number) => (cents / 100).toLocaleString("pt-BR", { style: 
 const percent = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 2 });
 const filterClass = "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm";
 const compare = new Intl.Collator("pt-BR", { numeric: true }).compare;
+const scKey = (projectCode: string, number: string) => JSON.stringify([projectCode, number]);
 
 function distinctOptions(values: string[]) {
   return [...new Set(values.filter(Boolean))].sort(compare);
@@ -99,10 +100,22 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
     project.status !== "Concluído" && project.status !== "Cancelado" &&
     /^\d{4}-\d{2}-\d{2}$/.test(project.finish) && project.finish < today,
   ).length;
+  let overdueScCount: number | null = null;
+  if (financialState.status === "ready" && plannedPurchases) {
+    const confirmed = new Set(financialState.data.requisitions.map((sc) => scKey(sc.projectCode, sc.code)));
+    for (const order of financialState.data.orders) {
+      for (const code of orderRequisitionCodes(order)) confirmed.add(scKey(order.projectCode, code));
+    }
+    overdueScCount = plannedPurchases.filter((purchase) => isScOpeningOverdue(purchase, today,
+      !confirmed.has(scKey(purchase.projectCode, purchase.scNumber?.trim() ?? "")),
+    )).length;
+  }
+  const overdueScValue = overdueScCount ?? (procurement === null || financialState.status === "error" ? "Indisponível" : "Carregando…");
   const cards = [
     ["Projetos cadastrados", visibleProjects.length, hasFilter ? "No filtro selecionado" : "Carteira total"],
     ["Status dos projetos", null, null],
     ["Projetos atrasados", overdueCount, "Prazo planejado vencido"],
+    ["SC em atraso", overdueScValue, "Contratações com abertura da SC vencida"],
   ] as const;
   const financialCards = [
     { label: "Custos realizados", total: Number.isSafeInteger(totalActual) ? totalActual : null },

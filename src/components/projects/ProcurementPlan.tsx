@@ -7,7 +7,7 @@ import { projectCalendarDate } from "../../lib/projects/project-date";
 import { onlineMode } from "../../lib/online/state";
 import { changeOnlineProcurement, loadOnlineProcurement } from "../../lib/online/operations";
 import {
-  addPlannedPurchase, addProcurementType, deletePlannedPurchase, loadProcurementPlan,
+  addPlannedPurchase, addProcurementType, deletePlannedPurchase, isScOpeningOverdue, loadProcurementPlan,
   updatePlannedPurchase, type PlannedPurchase,
 } from "../../lib/projects/procurement-plan";
 
@@ -187,11 +187,6 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
   const missingCurrentSc = isMissingSc(scNumber);
   const missingViewedSc = isMissingSc(viewing?.scNumber);
 
-  function isOpeningOverdue(purchase: PlannedPurchase) {
-    return Boolean(purchase.scOpeningForecast && purchase.scOpeningForecast < today &&
-      (!purchase.scNumber?.trim() || isMissingSc(purchase.scNumber)));
-  }
-
   function orderDetails(number?: string, requisition?: string) {
     const linked = ordersBySc.get(requisition?.trim() ?? "");
     if (linked) {
@@ -343,7 +338,7 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
                 <th scope="row" className="p-3 align-top font-medium break-words">{purchase.title || "Sem título"}</th>
                 <td>{purchase.type}</td>
                 <td className="whitespace-nowrap text-right">{currency.format(purchase.estimatedCents / 100)}</td>
-                <td className="whitespace-nowrap"><OpeningForecast date={purchase.scOpeningForecast} overdue={isOpeningOverdue(purchase)} /></td>
+                <td className="whitespace-nowrap"><OpeningForecast date={purchase.scOpeningForecast} overdue={isScOpeningOverdue(purchase, today, missing)} /></td>
                 <td className={missing ? "font-medium text-red-800" : undefined}>
                   {purchase.scNumber || "—"}{missing && <span className="sr-only"> ({missingScMessage})</span>}
                 </td>
@@ -370,7 +365,7 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
         <div><dt className="text-slate-500">Tipo de contratação</dt><dd className="mt-1">{viewing.type}</dd></div>
         <div><dt className="text-slate-500">Valor estimado</dt><dd className="mt-1">{currency.format(viewing.estimatedCents / 100)}</dd></div>
         <div><dt className="text-slate-500">Previsão de abertura da SC</dt><dd className="mt-1"><OpeningForecast
-          date={viewing.scOpeningForecast} overdue={isOpeningOverdue(viewing)} /></dd></div>
+          date={viewing.scOpeningForecast} overdue={isScOpeningOverdue(viewing, today, missingViewedSc)} /></dd></div>
         <div>
           <dt className="text-slate-500">Número da SC</dt>
           <dd className={missingViewedSc ? "mt-1 font-medium text-red-800" : "mt-1"}>
