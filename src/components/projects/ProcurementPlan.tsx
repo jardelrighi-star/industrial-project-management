@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { orderRequisitionCodes } from "../../lib/finance/calculations";
+import { loadScContracts, type ScContract } from "../../lib/finance/sc-contract";
 import { loadScOrderForecasts, scOrderKey, type ScOrderForecast } from "../../lib/finance/sc-order-forecast";
 import type { PurchaseOrder, PurchaseRequisition } from "../../lib/finance/types";
 import { projectCalendarDate } from "../../lib/projects/project-date";
@@ -17,6 +18,7 @@ const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "
 const percent = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 2 });
 const fieldClass = "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm";
 const missingScMessage = "SC ausente das listas de solicitações e pedidos do projeto.";
+const contractRequirement = (contract?: ScContract) => contract ? (contract.required ? "Sim" : "Não") : "—";
 
 function ForecastDate({ date }: { date?: string }) {
   return date ? <time dateTime={date}>{date.split("-").reverse().join("/")}</time> : "—";
@@ -39,6 +41,7 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
 }) {
   const [plan, setPlan] = useState<ReturnType<typeof loadProcurementPlan> | null>(null);
   const [orderForecasts, setOrderForecasts] = useState<ScOrderForecast[]>([]);
+  const [contracts, setContracts] = useState<ScContract[]>([]);
   const [formOpen, setFormOpen] = useState(false);
   const [viewing, setViewing] = useState<PlannedPurchase | null>(null);
   const detailsDialog = useRef<HTMLDialogElement>(null);
@@ -62,9 +65,11 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
       const storage = onlineMode ? await readOnlineStorage() : undefined;
       const savedPlan = loadProcurementPlan(storage);
       const savedForecasts = loadScOrderForecasts(storage);
+      const savedContracts = loadScContracts(storage);
       if (active) {
         setPlan(savedPlan);
         setOrderForecasts(savedForecasts);
+        setContracts(savedContracts);
       }
     }).catch(() => {
       if (active) setError("Não foi possível carregar o plano de aquisições salvo.");
@@ -222,6 +227,9 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
   const viewedOrder = orderDetails(viewing?.orderNumber, viewing?.scNumber);
   const forecastDates = new Map(orderForecasts.map((row) => [scOrderKey(row.projectCode, row.scNumber), row.forecastDate]));
   const orderForecastDate = (number?: string) => number ? forecastDates.get(scOrderKey(projectCode, number.trim())) : undefined;
+  const contractsBySc = new Map(contracts.map((row) => [scOrderKey(row.projectCode, row.scNumber), row]));
+  const contractForSc = (number?: string) => number ? contractsBySc.get(scOrderKey(projectCode, number.trim())) : undefined;
+  const viewedContract = contractForSc(viewing?.scNumber);
 
   return <section className="space-y-4" aria-labelledby="procurement-plan-heading">
     <header className="flex flex-wrap items-center justify-between gap-3">
@@ -340,12 +348,14 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
       <div className="overflow-x-auto rounded-xl border bg-white p-5 shadow-sm">
         <h3 className="mb-3 font-semibold">Contratações planejadas</h3>
         {purchases.length === 0 ? <p className="text-sm text-slate-500">Nenhuma aquisição planejada para este projeto.</p> :
-          <table aria-label="Contratações planejadas" className="w-full min-w-[980px] text-left text-sm">
+          <table aria-label="Contratações planejadas" className="w-full min-w-[1180px] text-left text-sm">
             <thead className="bg-slate-50"><tr>
               <th scope="col" className="p-3">Título</th><th scope="col" className="p-3">Tipo</th>
               <th scope="col" className="p-3 text-right">Valor estimado</th>
               <th scope="col" className="p-3">Previsão de abertura da SC</th>
               <th scope="col" className="p-3">Número da SC</th>
+              <th scope="col" className="p-3">Necessita contrato?</th>
+              <th scope="col" className="p-3">Previsão de conclusão do contrato</th>
               <th scope="col" className="p-3">Previsão de geração do pedido</th>
               <th scope="col" className="p-3">Número do pedido</th>
               <th scope="col" className="p-3 text-right">Saldo do pedido</th>
@@ -354,6 +364,7 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
             <tbody>{purchases.map((purchase) => {
               const missing = isMissingSc(purchase.scNumber);
               const linkedOrder = orderDetails(purchase.orderNumber, purchase.scNumber);
+              const contract = contractForSc(purchase.scNumber);
               return <tr key={purchase.id} className="border-t [&_td]:p-3 [&_td]:align-top">
                 <th scope="row" className="p-3 align-top font-medium break-words">{purchase.title || "Sem título"}</th>
                 <td>{purchase.type}</td>
@@ -362,6 +373,8 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
                 <td className={missing ? "font-medium text-red-800" : undefined}>
                   {purchase.scNumber || "—"}{missing && <span className="sr-only"> ({missingScMessage})</span>}
                 </td>
+                <td>{contractRequirement(contract)}</td>
+                <td className="whitespace-nowrap"><ForecastDate date={contract?.required ? contract.completionDate : undefined} /></td>
                 <td className="whitespace-nowrap"><ForecastDate date={orderForecastDate(purchase.scNumber)} /></td>
                 <td className={linkedOrder.issue ? "font-medium text-red-800" : undefined}>
                   {linkedOrder.numbers || "—"}{linkedOrder.issue && <span className="sr-only"> ({linkedOrder.issue})</span>}
@@ -393,6 +406,9 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
             {viewing.scNumber || "—"}{missingViewedSc && <span className="sr-only"> ({missingScMessage})</span>}
           </dd>
         </div>
+        <div><dt className="text-slate-500">Necessita contrato?</dt><dd className="mt-1">{contractRequirement(viewedContract)}</dd></div>
+        <div><dt className="text-slate-500">Previsão de conclusão do contrato</dt><dd className="mt-1">
+          <ForecastDate date={viewedContract?.required ? viewedContract.completionDate : undefined} /></dd></div>
         <div><dt className="text-slate-500">Previsão de geração do pedido</dt><dd className="mt-1">
           <ForecastDate date={orderForecastDate(viewing.scNumber)} /></dd></div>
         <div>

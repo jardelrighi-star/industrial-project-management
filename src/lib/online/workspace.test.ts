@@ -6,7 +6,7 @@ import { calculateProjectFinancials, emptyFinanceData } from "../finance/calcula
 import { LocalStorageFinanceRepository } from "../finance/repository";
 import { previewCostImport } from "../finance/sankhya-import";
 import { loadScOrderForecasts, SC_ORDER_FORECAST_KEY } from "../finance/sc-order-forecast";
-import { loadScContracts, SC_CONTRACT_KEY } from "../finance/sc-contract";
+import { loadScContracts } from "../finance/sc-contract";
 import type { Project } from "../projects/types";
 import { loadProcurementPlan } from "../projects/procurement-plan";
 import { changeProcurement, changeReviews, changeScContract, changeScOrderForecast, replaceWorkspace, scopeWorkspace } from "./workspace";
@@ -150,7 +150,9 @@ test("Purchasing decides contract requirements, and Legal can only schedule requ
   await assert.rejects(changeScContract(legal, state.payload, completion), /mudou/);
   const scoped = await scopeWorkspace(legal, state);
   assert.deepEqual(loadScContracts(memoryStorage(scoped.payload)), [{ projectCode: "P1", scNumber: "123", required: true, completionDate: "2027-03-20" }]);
-  assert.equal((await scopeWorkspace(manager, state)).payload[SC_CONTRACT_KEY], undefined);
+  const scopedManager = await scopeWorkspace(manager, state);
+  assert.deepEqual(loadScContracts(memoryStorage(scopedManager.payload)), [{ projectCode: "P1", scNumber: "123", required: true, completionDate: "2027-03-20" }]);
+  await assert.rejects(changeScContract(manager, state.payload, { ...completion, expectedDate: "2027-03-20" }), /função/);
   await changeScContract(buyer, state.payload, { ...requirement, required: false, expectedRequired: true });
   await assert.rejects(changeScContract(legal, state.payload, { ...completion, expectedDate: "2027-03-20" }), /não está marcada/);
   assert.equal(loadScContracts(memoryStorage(state.payload))[0].completionDate, "2027-03-20");

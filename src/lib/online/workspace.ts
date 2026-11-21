@@ -67,9 +67,7 @@ export async function scopeWorkspace(member: Member, state: WorkspaceState): Pro
     }),
     [PROCUREMENT_PLAN_KEY]: JSON.stringify({ ...procurement, purchases: procurement.purchases.filter((row) => allowed(row.projectCode)) }),
     [SC_ORDER_FORECAST_KEY]: JSON.stringify(loadScOrderForecasts(storage).filter((row) => allowed(row.projectCode))),
-    ...(canScheduleOrders(member.role) || canScheduleContracts(member.role) ? {
-      [SC_CONTRACT_KEY]: JSON.stringify(loadScContracts(storage).filter((row) => allowed(row.projectCode))),
-    } : {}),
+    [SC_CONTRACT_KEY]: JSON.stringify(loadScContracts(storage).filter((row) => allowed(row.projectCode))),
   } };
 }
 
