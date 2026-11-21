@@ -2,16 +2,17 @@ import { FINANCE_KEY, PROJECT_KEY } from "../coordinated-storage";
 import { actualCostReviewIdentity, indexActualCostReviews, reconcileActualCostReviews, recordActualCostReviews, type ActualCostReviewTarget } from "../finance/actual-cost-review";
 import { LocalStorageFinanceRepository } from "../finance/repository";
 import { loadScOrderForecasts, saveScOrderForecast, SC_ORDER_FORECAST_KEY, scsAwaitingOrders } from "../finance/sc-order-forecast";
+import { loadScContracts, saveScContract, SC_CONTRACT_KEY } from "../finance/sc-contract";
 import { compactFinanceStorage } from "../finance/storage-codec";
 import type { ActualCostReview, BudgetAdjustment } from "../finance/types";
 import { LocalStoragePortfolioModelRepository, PORTFOLIO_MODELS_KEY } from "../projects/portfolio-model-repository";
 import { addPlannedPurchase, addProcurementType, deletePlannedPurchase, loadProcurementPlan, PROCUREMENT_PLAN_KEY, updatePlannedPurchase } from "../projects/procurement-plan";
 import { LocalStorageProjectRepository } from "../projects/repository";
 import { OnlineError, type Member } from "./server";
-import { canScheduleOrders, memoryStorage, type WorkspacePayload, type WorkspaceState } from "./state";
+import { canScheduleContracts, canScheduleOrders, memoryStorage, type WorkspacePayload, type WorkspaceState } from "./state";
 
 const editableKeys = new Set([PROJECT_KEY, FINANCE_KEY, PORTFOLIO_MODELS_KEY]);
-const allKeys = [PROJECT_KEY, FINANCE_KEY, PORTFOLIO_MODELS_KEY, PROCUREMENT_PLAN_KEY, SC_ORDER_FORECAST_KEY];
+const allKeys = [PROJECT_KEY, FINANCE_KEY, PORTFOLIO_MODELS_KEY, PROCUREMENT_PLAN_KEY, SC_ORDER_FORECAST_KEY, SC_CONTRACT_KEY];
 
 export function hasProjectAccess(member: Member, projectCode: string) {
   return member.role === "admin" || member.projectCodes.includes(projectCode);
@@ -66,6 +67,9 @@ export async function scopeWorkspace(member: Member, state: WorkspaceState): Pro
     }),
     [PROCUREMENT_PLAN_KEY]: JSON.stringify({ ...procurement, purchases: procurement.purchases.filter((row) => allowed(row.projectCode)) }),
     [SC_ORDER_FORECAST_KEY]: JSON.stringify(loadScOrderForecasts(storage).filter((row) => allowed(row.projectCode))),
+    ...(canScheduleOrders(member.role) || canScheduleContracts(member.role) ? {
+      [SC_CONTRACT_KEY]: JSON.stringify(loadScContracts(storage).filter((row) => allowed(row.projectCode))),
+    } : {}),
   } };
 }
 
@@ -149,6 +153,35 @@ export async function changeScOrderForecast(member: Member, payload: WorkspacePa
     forecastDate: string(input.forecastDate, 10),
     expectedDate: input.expectedDate === null ? null : string(input.expectedDate, 10),
   }, storage);
+}
+
+export async function changeScContract(member: Member, payload: WorkspacePayload, input: Record<string, unknown>) {
+  const operation = input.operation;
+  if (operation !== "requirement" && operation !== "completion") throw new OnlineError(400, "Operação de contrato inválida.");
+  if (operation === "requirement" ? !canScheduleOrders(member.role) : !canScheduleContracts(member.role)) {
+    throw new OnlineError(403, "Sua função não permite alterar este campo do contrato.");
+  }
+  const projectCode = string(input.projectCode, 150);
+  if (!hasProjectAccess(member, projectCode)) throw new OnlineError(403, "Sua conta não tem acesso a este projeto.");
+  const scNumber = string(input.scNumber, 200);
+  const storage = memoryStorage(payload);
+  const projects = await new LocalStorageProjectRepository(() => storage).load();
+  if (!projects?.some((project) => project.code === projectCode)) throw new OnlineError(404, "Projeto não encontrado.");
+  if (operation === "requirement") {
+    const finance = await new LocalStorageFinanceRepository(() => storage).load();
+    if (!scsAwaitingOrders(finance).some((sc) => sc.projectCode === projectCode && sc.code === scNumber)) {
+      throw new OnlineError(409, "A SC não está mais na lista de solicitações sem pedido.");
+    }
+    if (typeof input.required !== "boolean" || (input.expectedRequired !== null && typeof input.expectedRequired !== "boolean")) {
+      throw new OnlineError(400, "Selecione Sim ou Não para a necessidade de contrato.");
+    }
+    await saveScContract({ operation, projectCode, scNumber, required: input.required, expectedRequired: input.expectedRequired }, storage);
+  } else {
+    await saveScContract({
+      operation, projectCode, scNumber, completionDate: string(input.completionDate, 10),
+      expectedDate: input.expectedDate === null ? null : string(input.expectedDate, 10),
+    }, storage);
+  }
 }
 
 export async function changeReviews(member: Member, payload: WorkspacePayload, input: Record<string, unknown>) {

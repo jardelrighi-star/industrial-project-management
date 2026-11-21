@@ -37,6 +37,8 @@ Use `analyst` para o analista. O administrador cadastra projetos, importa planil
 
 Para habilitar o time de **Compras**, aplique [a migração do perfil Compras](../supabase/migrations/202611200002_buyer_role.sql) e use `buyer` no cadastro de membros. Os usuários desse perfil informam a previsão de geração do pedido para SCs sem pedido dos projetos atribuídos. Os administradores também podem acessar a seção.
 
+Para habilitar **Jurídico**, aplique [a migração do perfil Jurídico](../supabase/migrations/202611200003_legal_role.sql) e use `legal` no cadastro de membros. O Jurídico consulta as SCs dos projetos atribuídos que Compras marcou como necessitando contrato e informa a previsão de conclusão. Compras pode alterar a necessidade. Administradores podem usar as duas seções.
+
 ## Configurar o Next.js
 
 Copie [o exemplo de variáveis](../.env.example) para `.env.local` e preencha os valores do Supabase. Na hospedagem, configure as mesmas quatro variáveis no ambiente de homologação e gere um novo build. Somente `NEXT_PUBLIC_APP_MODE` é destinado ao cliente. A chave secreta é usada no servidor para consultar a associação e acessar o snapshot. As tabelas têm RLS habilitada e os papéis públicos do Supabase ficam sem acesso direto.

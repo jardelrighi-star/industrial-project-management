@@ -1,8 +1,13 @@
 import { FINANCE_KEY } from "../../../lib/coordinated-storage";
 import { PROCUREMENT_PLAN_KEY } from "../../../lib/projects/procurement-plan";
 import { SC_ORDER_FORECAST_KEY } from "../../../lib/finance/sc-order-forecast";
+import { SC_CONTRACT_KEY } from "../../../lib/finance/sc-contract";
 import { commitWorkspace, loadWorkspace, OnlineError, onlineRoute, readRequest, requireMember, response } from "../../../lib/online/server";
-import { changeProcurement, changeReviews, changeScOrderForecast, replaceWorkspace, scopeWorkspace } from "../../../lib/online/workspace";
+import { changeProcurement, changeReviews, changeScContract, changeScOrderForecast, replaceWorkspace, scopeWorkspace } from "../../../lib/online/workspace";
+
+const responseKeys = {
+  review: FINANCE_KEY, scOrderForecast: SC_ORDER_FORECAST_KEY, scContract: SC_CONTRACT_KEY, procurement: PROCUREMENT_PLAN_KEY,
+};
 
 export function GET() {
   return onlineRoute(async () => {
@@ -32,6 +37,9 @@ export function POST(request: Request) {
         case "scOrderForecast":
           await changeScOrderForecast(member, payload, input);
           break;
+        case "scContract":
+          await changeScContract(member, payload, input);
+          break;
         default:
           throw new OnlineError(400, "Operação desconhecida.");
       }
@@ -43,7 +51,7 @@ export function POST(request: Request) {
     const scoped = input.action === "replace" ? null : await scopeWorkspace(member, { ...current, payload });
     await commitWorkspace(member.workspaceId, { version: current.version, payload });
     if (scoped) {
-      const key = input.action === "review" ? FINANCE_KEY : input.action === "scOrderForecast" ? SC_ORDER_FORECAST_KEY : PROCUREMENT_PLAN_KEY;
+      const key = responseKeys[input.action as keyof typeof responseKeys];
       result.payload = { [key]: scoped.payload[key] };
     }
     return response(result);

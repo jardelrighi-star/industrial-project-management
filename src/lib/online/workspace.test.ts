@@ -6,9 +6,10 @@ import { calculateProjectFinancials, emptyFinanceData } from "../finance/calcula
 import { LocalStorageFinanceRepository } from "../finance/repository";
 import { previewCostImport } from "../finance/sankhya-import";
 import { loadScOrderForecasts, SC_ORDER_FORECAST_KEY } from "../finance/sc-order-forecast";
+import { loadScContracts, SC_CONTRACT_KEY } from "../finance/sc-contract";
 import type { Project } from "../projects/types";
 import { loadProcurementPlan } from "../projects/procurement-plan";
-import { changeProcurement, changeReviews, changeScOrderForecast, replaceWorkspace, scopeWorkspace } from "./workspace";
+import { changeProcurement, changeReviews, changeScContract, changeScOrderForecast, replaceWorkspace, scopeWorkspace } from "./workspace";
 import { memoryStorage, type WorkspaceState } from "./state";
 import type { Member } from "./server";
 
@@ -125,4 +126,32 @@ test("buyers schedule pending SCs in their projects, and later imports preserve 
   });
   assert.equal(imported[SC_ORDER_FORECAST_KEY], state.payload[SC_ORDER_FORECAST_KEY]);
   await assert.rejects(changeScOrderForecast(buyer, imported, { ...request, expectedDate: "2027-03-10" }), /sem pedido/);
+});
+
+test("Purchasing decides contract requirements, and Legal can only schedule required SCs in its projects", async () => {
+  const { state, finance } = fixture();
+  const buyer: Member = { ...manager, role: "buyer" };
+  const legal: Member = { ...manager, role: "legal" };
+  finance.requisitions = ["P1", "P2"].map((projectCode) => ({
+    code: "123", projectCode, amount: 500, objective: "", approvalStatus: "approved",
+    convertedOrderNumber: null, traceability: { sourceSystem: "Sankhya", sourceRecordId: projectCode, recordedAt: time, externalReference: null },
+  }));
+  state.payload[FINANCE_KEY] = JSON.stringify({ version: 1, data: finance });
+  const requirement = { operation: "requirement", projectCode: "P1", scNumber: "123", required: true, expectedRequired: null };
+  const completion = { operation: "completion", projectCode: "P1", scNumber: "123", completionDate: "2027-03-20", expectedDate: null };
+  await assert.rejects(changeScContract(legal, state.payload, requirement), /função/);
+  await assert.rejects(changeScContract(buyer, state.payload, completion), /função/);
+  await assert.rejects(changeScContract(legal, state.payload, completion), /não está marcada/);
+  await changeScContract(buyer, state.payload, requirement);
+  await changeScContract(admin, state.payload, { ...requirement, projectCode: "P2" });
+  await assert.rejects(changeScContract(legal, state.payload, { ...completion, projectCode: "P2" }), /acesso/);
+  await assert.rejects(changeScContract(legal, state.payload, { ...completion, completionDate: "2027-02-30" }), /Data inválida/);
+  await changeScContract(legal, state.payload, completion);
+  await assert.rejects(changeScContract(legal, state.payload, completion), /mudou/);
+  const scoped = await scopeWorkspace(legal, state);
+  assert.deepEqual(loadScContracts(memoryStorage(scoped.payload)), [{ projectCode: "P1", scNumber: "123", required: true, completionDate: "2027-03-20" }]);
+  assert.equal((await scopeWorkspace(manager, state)).payload[SC_CONTRACT_KEY], undefined);
+  await changeScContract(buyer, state.payload, { ...requirement, required: false, expectedRequired: true });
+  await assert.rejects(changeScContract(legal, state.payload, { ...completion, expectedDate: "2027-03-20" }), /não está marcada/);
+  assert.equal(loadScContracts(memoryStorage(state.payload))[0].completionDate, "2027-03-20");
 });

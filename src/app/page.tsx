@@ -19,7 +19,7 @@ import { PROJECT_KEY, FINANCE_KEY, TRANSACTION_KEY } from "../lib/coordinated-st
 import { ManualProjectBudgetRepository, planManualProjectSave, budgetInputValue, type ManualBudgetRequest, type ManualProjectSnapshot, type ManualProjectPlan } from "../lib/finance/manual-project-budget";
 import ManualBudgetFields from "../components/finance/ManualBudgetFields";
 import OnlineGate from "../components/OnlineGate";
-import { canScheduleOrders, onlineMode, type OnlineSession } from "../lib/online/state";
+import { canScheduleContracts, canScheduleOrders, onlineMode, type OnlineSession } from "../lib/online/state";
 
 const projectRepository = new LocalStorageProjectRepository();
 const financeRepository = new LocalStorageFinanceRepository();
@@ -60,6 +60,7 @@ function WorkspaceHome({ session, logout }: { session?: OnlineSession; logout?: 
   const canAnalyze = canAdminister || session?.role === "analyst";
   const canManage = canAdminister || session?.role === "manager";
   const canAccessPurchasing = !session || canScheduleOrders(session.role);
+  const canAccessLegal = !session || canScheduleContracts(session.role);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState("");
@@ -296,6 +297,7 @@ function openDetails(project: Project) {
             ["▦", "Dashboard"],
             ["▤", "Projetos"],
             ["▣", "Compras"],
+            ["§", "Jurídico"],
             ["⇩", "Importações"],
             ["▦", "Cronogramas"],
             ["R$", "Financeiro"],
@@ -307,12 +309,13 @@ function openDetails(project: Project) {
             if (label === "Importações" || label === "Reconciliação") return canAdminister;
             if (label === "Análise de custos") return canAnalyze;
             if (label === "Compras") return canAccessPurchasing;
+            if (label === "Jurídico") return canAccessLegal;
             return true;
           }).map(([icon, label]) => (
             <button
               key={label}
               onClick={() => {
-                if (["Dashboard", "Projetos", "Compras", "Importações", "Reconciliação", "Análise de custos", "Relatórios"].includes(label)) {
+                if (["Dashboard", "Projetos", "Compras", "Jurídico", "Importações", "Reconciliação", "Análise de custos", "Relatórios"].includes(label)) {
                   setActiveSection(label);
                   setSelectedProjectCode(null);
                   setFormOpen(false);
@@ -356,6 +359,10 @@ function openDetails(project: Project) {
         {activeSection === "Análise de custos" && loaded && <ActualCostReviewQueue />}
         {activeSection === "Compras" && canAccessPurchasing && loaded && (
           <Purchasing projects={projects} finance={financialState.status === "ready" ? financialState.data : undefined}
+            financeUnavailable={financialState.status === "error"} />
+        )}
+        {activeSection === "Jurídico" && canAccessLegal && loaded && (
+          <Purchasing legal projects={projects} finance={financialState.status === "ready" ? financialState.data : undefined}
             financeUnavailable={financialState.status === "error"} />
         )}
         {activeSection === "Relatórios" && loaded && <ActualCostReport />}

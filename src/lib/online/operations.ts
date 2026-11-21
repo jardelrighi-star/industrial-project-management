@@ -1,6 +1,7 @@
 import type { FinanceData } from "../finance/types";
 import { LocalStorageFinanceRepository } from "../finance/repository";
 import { loadScOrderForecasts, saveScOrderForecast } from "../finance/sc-order-forecast";
+import { loadScContracts, type ScContractChange } from "../finance/sc-contract";
 import { FINANCE_KEY } from "../coordinated-storage";
 import type { ActualCostReviewTarget } from "../finance/actual-cost-review";
 import type { ActualCostReviewAction } from "../finance/types";
@@ -12,13 +13,14 @@ export async function loadOnlineProcurement() {
   return loadProcurementPlan(await readOnlineStorage());
 }
 
-export async function loadOnlineScOrderForecasts() {
-  return loadScOrderForecasts(await readOnlineStorage());
-}
-
 export async function saveOnlineScOrderForecast(request: Parameters<typeof saveScOrderForecast>[0]) {
   const { payload } = await onlinePost<{ payload: WorkspacePayload }>("/api/workspace", { ...request, action: "scOrderForecast" });
   return loadScOrderForecasts(memoryStorage(payload));
+}
+
+export async function saveOnlineScContract(request: ScContractChange) {
+  const { payload } = await onlinePost<{ payload: WorkspacePayload }>("/api/workspace", { ...request, action: "scContract" });
+  return loadScContracts(memoryStorage(payload));
 }
 
 export async function changeOnlineProcurement(projectCode: string, operation: "addType" | "create" | "update" | "delete", fields: Record<string, unknown>) {
