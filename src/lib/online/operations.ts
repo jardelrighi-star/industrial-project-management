@@ -7,11 +7,7 @@ import type { ActualCostReviewTarget } from "../finance/actual-cost-review";
 import type { ActualCostReviewAction } from "../finance/types";
 import { loadProcurementPlan } from "../projects/procurement-plan";
 import { memoryStorage, type WorkspacePayload } from "./state";
-import { onlinePost, readOnlineStorage } from "./client";
-
-export async function loadOnlineProcurement() {
-  return loadProcurementPlan(await readOnlineStorage());
-}
+import { onlinePost } from "./client";
 
 export async function saveOnlineScOrderForecast(request: Parameters<typeof saveScOrderForecast>[0]) {
   const { payload } = await onlinePost<{ payload: WorkspacePayload }>("/api/workspace", { ...request, action: "scOrderForecast" });

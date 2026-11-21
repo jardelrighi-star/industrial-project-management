@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { officialBudget } from "../../lib/finance/budget-reconciliation";
 import { calculateCommittedBreakdown, orderRequisitionCodes } from "../../lib/finance/calculations";
+import { loadScContracts } from "../../lib/finance/sc-contract";
+import { loadScOrderForecasts, scOrderKey, scsAwaitingOrders } from "../../lib/finance/sc-order-forecast";
 import type { FinanceData } from "../../lib/finance/types";
 import type { Project } from "../../lib/projects/types";
 import { projectCalendarDate } from "../../lib/projects/project-date";
 import { isScOpeningOverdue, loadProcurementPlan } from "../../lib/projects/procurement-plan";
-import { loadOnlineProcurement } from "../../lib/online/operations";
+import { readOnlineStorage } from "../../lib/online/client";
 import { onlineMode } from "../../lib/online/state";
 
 export type PortfolioFinancialState = { status: "loading" | "error" } | { status: "ready"; data: FinanceData };
@@ -16,7 +18,11 @@ const money = (cents: number) => (cents / 100).toLocaleString("pt-BR", { style: 
 const percent = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 2 });
 const filterClass = "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm";
 const compare = new Intl.Collator("pt-BR", { numeric: true }).compare;
-const scKey = (projectCode: string, number: string) => JSON.stringify([projectCode, number]);
+type PlanningData = {
+  procurement: ReturnType<typeof loadProcurementPlan>;
+  orderForecasts: ReturnType<typeof loadScOrderForecasts>;
+  contracts: ReturnType<typeof loadScContracts>;
+};
 
 function distinctOptions(values: string[]) {
   return [...new Set(values.filter(Boolean))].sort(compare);
@@ -30,17 +36,24 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
   const [department, setDepartment] = useState("");
   const [owner, setOwner] = useState("");
   const [projectCode, setProjectCode] = useState("");
-  const [procurement, setProcurement] = useState<ReturnType<typeof loadProcurementPlan> | null>();
+  const [planning, setPlanning] = useState<PlanningData | null>();
 
   useEffect(() => {
     let active = true;
     let request = 0;
     function refresh() {
       const current = ++request;
-      void Promise.resolve().then(() => onlineMode ? loadOnlineProcurement() : loadProcurementPlan()).then((plan) => {
-        if (active && request === current) setProcurement(plan);
+      void Promise.resolve().then(async () => {
+        const storage = onlineMode ? await readOnlineStorage() : undefined;
+        return {
+          procurement: loadProcurementPlan(storage),
+          orderForecasts: loadScOrderForecasts(storage),
+          contracts: loadScContracts(storage),
+        };
+      }).then((data) => {
+        if (active && request === current) setPlanning(data);
       }).catch(() => {
-        if (active && request === current) setProcurement(null);
+        if (active && request === current) setPlanning(null);
       });
     }
     refresh();
@@ -63,7 +76,7 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
   }, [projects, department, owner, projectCode]);
   const hasFilter = Boolean(selectedDepartment || selectedOwner || selectedProject);
   const visibleCodes = new Set(visibleProjects.map((project) => project.code));
-  const plannedPurchases = procurement?.purchases.filter((purchase) => visibleCodes.has(purchase.projectCode));
+  const plannedPurchases = planning?.procurement.purchases.filter((purchase) => visibleCodes.has(purchase.projectCode));
   const plannedTotal = plannedPurchases?.reduce((sum, purchase) => sum + purchase.estimatedCents, 0);
   const updatedBudgets = financialState.status === "ready"
     ? new Map(financialState.data.budgets.filter((budget) => visibleCodes.has(budget.projectCode))
@@ -101,21 +114,32 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
     /^\d{4}-\d{2}-\d{2}$/.test(project.finish) && project.finish < today,
   ).length;
   let overdueScCount: number | null = null;
-  if (financialState.status === "ready" && plannedPurchases) {
-    const confirmed = new Set(financialState.data.requisitions.map((sc) => scKey(sc.projectCode, sc.code)));
+  let missingOrderForecastCount: number | null = null;
+  if (financialState.status === "ready" && planning && plannedPurchases) {
+    const confirmed = new Set(financialState.data.requisitions.map((sc) => scOrderKey(sc.projectCode, sc.code)));
     for (const order of financialState.data.orders) {
-      for (const code of orderRequisitionCodes(order)) confirmed.add(scKey(order.projectCode, code));
+      for (const code of orderRequisitionCodes(order)) confirmed.add(scOrderKey(order.projectCode, code));
     }
     overdueScCount = plannedPurchases.filter((purchase) => isScOpeningOverdue(purchase, today,
-      !confirmed.has(scKey(purchase.projectCode, purchase.scNumber?.trim() ?? "")),
+      !confirmed.has(scOrderKey(purchase.projectCode, purchase.scNumber?.trim() ?? "")),
     )).length;
+    const scheduledOrders = new Set(planning.orderForecasts.map((row) => scOrderKey(row.projectCode, row.scNumber)));
+    missingOrderForecastCount = scsAwaitingOrders(financialState.data).filter((sc) =>
+      visibleCodes.has(sc.projectCode) && !scheduledOrders.has(scOrderKey(sc.projectCode, sc.code)),
+    ).length;
   }
-  const overdueScValue = overdueScCount ?? (procurement === null || financialState.status === "error" ? "Indisponível" : "Carregando…");
+  const missingContractForecastCount = planning?.contracts.filter((contract) =>
+    visibleCodes.has(contract.projectCode) && contract.required && !contract.completionDate,
+  ).length;
+  const pendingStatus = planning === null || financialState.status === "error" ? "Indisponível" : "Carregando…";
+  const overdueScValue = overdueScCount ?? pendingStatus;
   const cards = [
     ["Projetos cadastrados", visibleProjects.length, hasFilter ? "No filtro selecionado" : "Carteira total"],
     ["Status dos projetos", null, null],
     ["Projetos atrasados", overdueCount, "Prazo planejado vencido"],
     ["SC em atraso", overdueScValue, "Contratações com abertura da SC vencida"],
+    ["SCs sem previsão de pedido", missingOrderForecastCount ?? pendingStatus, "Solicitações ainda sem pedido e sem data prevista"],
+    ["Contratos sem previsão de conclusão", missingContractForecastCount ?? (planning === null ? "Indisponível" : "Carregando…"), "SCs marcadas como necessitando contrato"],
   ] as const;
   const financialCards = [
     { label: "Custos realizados", total: Number.isSafeInteger(totalActual) ? totalActual : null },
@@ -184,7 +208,7 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
       <div className="rounded-xl border bg-white p-5 shadow-sm">
         <p className="text-sm text-slate-500">Orçamento planejado</p>
         <p className={`mt-3 text-lg font-semibold ${validPlannedTotal ? "text-slate-800" : "text-slate-400"}`}>
-          {validPlannedTotal ? money(plannedTotal) : procurement === undefined ? "Carregando…" : "Indisponível"}
+          {validPlannedTotal ? money(plannedTotal) : planning === undefined ? "Carregando…" : "Indisponível"}
         </p>
         <p className={`mt-1 text-xs ${plannedShare !== null && plannedShare > 1 ? "font-semibold text-red-700" : "text-slate-500"}`}>
           {plannedShare === null ? "Percentual indisponível" : `${percent.format(plannedShare)} do orçamento atualizado`}
