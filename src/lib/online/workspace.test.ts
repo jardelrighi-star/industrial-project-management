@@ -115,7 +115,8 @@ test("buyers schedule pending SCs in their projects, and later imports preserve 
   await changeScOrderForecast(admin, state.payload, { ...request, projectCode: "P2" });
   const scopedBuyer = await scopeWorkspace(buyer, state);
   assert.deepEqual(loadScOrderForecasts(memoryStorage(scopedBuyer.payload)), [{ projectCode: "P1", scNumber: "123", forecastDate: "2027-03-10" }]);
-  assert.equal((await scopeWorkspace(manager, state)).payload[SC_ORDER_FORECAST_KEY], undefined);
+  const scopedManager = await scopeWorkspace(manager, state);
+  assert.deepEqual(loadScOrderForecasts(memoryStorage(scopedManager.payload)), [{ projectCode: "P1", scNumber: "123", forecastDate: "2027-03-10" }]);
 
   const imported = await replaceWorkspace(admin, state, {
     version: state.version, changes: { [FINANCE_KEY]: JSON.stringify({ version: 1, data: {

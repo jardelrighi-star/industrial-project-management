@@ -2,10 +2,12 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { orderRequisitionCodes } from "../../lib/finance/calculations";
+import { loadScOrderForecasts, scOrderKey, type ScOrderForecast } from "../../lib/finance/sc-order-forecast";
 import type { PurchaseOrder, PurchaseRequisition } from "../../lib/finance/types";
 import { projectCalendarDate } from "../../lib/projects/project-date";
 import { onlineMode } from "../../lib/online/state";
-import { changeOnlineProcurement, loadOnlineProcurement } from "../../lib/online/operations";
+import { readOnlineStorage } from "../../lib/online/client";
+import { changeOnlineProcurement } from "../../lib/online/operations";
 import {
   addPlannedPurchase, addProcurementType, deletePlannedPurchase, isScOpeningOverdue, loadProcurementPlan,
   updatePlannedPurchase, type PlannedPurchase,
@@ -16,10 +18,14 @@ const percent = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFracti
 const fieldClass = "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm";
 const missingScMessage = "SC ausente das listas de solicitações e pedidos do projeto.";
 
+function ForecastDate({ date }: { date?: string }) {
+  return date ? <time dateTime={date}>{date.split("-").reverse().join("/")}</time> : "—";
+}
+
 function OpeningForecast({ date, overdue }: { date?: string; overdue: boolean }) {
   if (!date) return "—";
   return <div className="flex flex-wrap items-center gap-2">
-    <time dateTime={date}>{date.split("-").reverse().join("/")}</time>
+    <ForecastDate date={date} />
     {overdue && <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">Atrasada</span>}
   </div>;
 }
@@ -32,6 +38,7 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
   canManage?: boolean;
 }) {
   const [plan, setPlan] = useState<ReturnType<typeof loadProcurementPlan> | null>(null);
+  const [orderForecasts, setOrderForecasts] = useState<ScOrderForecast[]>([]);
   const [formOpen, setFormOpen] = useState(false);
   const [viewing, setViewing] = useState<PlannedPurchase | null>(null);
   const detailsDialog = useRef<HTMLDialogElement>(null);
@@ -51,8 +58,14 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
 
   useEffect(() => {
     let active = true;
-    void Promise.resolve().then(() => onlineMode ? loadOnlineProcurement() : loadProcurementPlan()).then((saved) => {
-      if (active) setPlan(saved);
+    void Promise.resolve().then(async () => {
+      const storage = onlineMode ? await readOnlineStorage() : undefined;
+      const savedPlan = loadProcurementPlan(storage);
+      const savedForecasts = loadScOrderForecasts(storage);
+      if (active) {
+        setPlan(savedPlan);
+        setOrderForecasts(savedForecasts);
+      }
     }).catch(() => {
       if (active) setError("Não foi possível carregar o plano de aquisições salvo.");
     });
@@ -207,6 +220,8 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
 
   const currentOrder = orderDetails(orderNumber, scNumber);
   const viewedOrder = orderDetails(viewing?.orderNumber, viewing?.scNumber);
+  const forecastDates = new Map(orderForecasts.map((row) => [scOrderKey(row.projectCode, row.scNumber), row.forecastDate]));
+  const orderForecastDate = (number?: string) => number ? forecastDates.get(scOrderKey(projectCode, number.trim())) : undefined;
 
   return <section className="space-y-4" aria-labelledby="procurement-plan-heading">
     <header className="flex flex-wrap items-center justify-between gap-3">
@@ -272,7 +287,7 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
                 placeholder="0,00" className={fieldClass} />
             </label>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <label className="block text-sm font-medium">Previsão de abertura da SC
               <input type="date" value={scOpeningForecast} onChange={(event) => setScOpeningForecast(event.target.value)}
                 className={fieldClass} />
@@ -283,6 +298,10 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
                 className={`${fieldClass} ${missingCurrentSc ? "border-red-600! text-red-800" : ""}`} />
               {missingCurrentSc && <span id="procurement-sc-unavailable" className="sr-only">{missingScMessage}</span>}
             </label>
+            <div className="text-sm">
+              <span className="font-medium">Previsão de geração do pedido</span>
+              <p className="mt-2 text-slate-700" aria-live="polite"><ForecastDate date={orderForecastDate(scNumber)} /></p>
+            </div>
             <label className="block text-sm font-medium">Número do pedido
               <input value={currentOrder.automatic ? currentOrder.numbers : orderNumber} readOnly={currentOrder.automatic}
                 onChange={(event) => setOrderNumber(event.target.value)}
@@ -321,12 +340,13 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
       <div className="overflow-x-auto rounded-xl border bg-white p-5 shadow-sm">
         <h3 className="mb-3 font-semibold">Contratações planejadas</h3>
         {purchases.length === 0 ? <p className="text-sm text-slate-500">Nenhuma aquisição planejada para este projeto.</p> :
-          <table aria-label="Contratações planejadas" className="w-full min-w-[870px] text-left text-sm">
+          <table aria-label="Contratações planejadas" className="w-full min-w-[980px] text-left text-sm">
             <thead className="bg-slate-50"><tr>
               <th scope="col" className="p-3">Título</th><th scope="col" className="p-3">Tipo</th>
               <th scope="col" className="p-3 text-right">Valor estimado</th>
               <th scope="col" className="p-3">Previsão de abertura da SC</th>
               <th scope="col" className="p-3">Número da SC</th>
+              <th scope="col" className="p-3">Previsão de geração do pedido</th>
               <th scope="col" className="p-3">Número do pedido</th>
               <th scope="col" className="p-3 text-right">Saldo do pedido</th>
               <th scope="col" className="p-3 text-right">Ações</th>
@@ -342,6 +362,7 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
                 <td className={missing ? "font-medium text-red-800" : undefined}>
                   {purchase.scNumber || "—"}{missing && <span className="sr-only"> ({missingScMessage})</span>}
                 </td>
+                <td className="whitespace-nowrap"><ForecastDate date={orderForecastDate(purchase.scNumber)} /></td>
                 <td className={linkedOrder.issue ? "font-medium text-red-800" : undefined}>
                   {linkedOrder.numbers || "—"}{linkedOrder.issue && <span className="sr-only"> ({linkedOrder.issue})</span>}
                 </td>
@@ -372,6 +393,8 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
             {viewing.scNumber || "—"}{missingViewedSc && <span className="sr-only"> ({missingScMessage})</span>}
           </dd>
         </div>
+        <div><dt className="text-slate-500">Previsão de geração do pedido</dt><dd className="mt-1">
+          <ForecastDate date={orderForecastDate(viewing.scNumber)} /></dd></div>
         <div>
           <dt className="text-slate-500">Número do pedido</dt>
           <dd className={viewedOrder.issue ? "mt-1 font-medium text-red-800" : "mt-1"}>

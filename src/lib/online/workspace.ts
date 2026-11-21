@@ -65,9 +65,7 @@ export async function scopeWorkspace(member: Member, state: WorkspaceState): Pro
         reviewAllowed(member, review) && (reviewIndex.costs.get(review.identity) ?? []).every((row) => allowed(row.projectCode))),
     }),
     [PROCUREMENT_PLAN_KEY]: JSON.stringify({ ...procurement, purchases: procurement.purchases.filter((row) => allowed(row.projectCode)) }),
-    ...(canScheduleOrders(member.role) ? {
-      [SC_ORDER_FORECAST_KEY]: JSON.stringify(loadScOrderForecasts(storage).filter((row) => allowed(row.projectCode))),
-    } : {}),
+    [SC_ORDER_FORECAST_KEY]: JSON.stringify(loadScOrderForecasts(storage).filter((row) => allowed(row.projectCode))),
   } };
 }
 
