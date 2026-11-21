@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { orderRequisitionCodes } from "../../lib/finance/calculations";
 import type { PurchaseOrder, PurchaseRequisition } from "../../lib/finance/types";
+import { projectCalendarDate } from "../../lib/projects/project-date";
 import { onlineMode } from "../../lib/online/state";
 import { changeOnlineProcurement, loadOnlineProcurement } from "../../lib/online/operations";
 import {
@@ -14,7 +15,14 @@ const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "
 const percent = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 2 });
 const fieldClass = "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm";
 const missingScMessage = "SC ausente das listas de solicitações e pedidos do projeto.";
-const displayDate = (value?: string) => value ? value.split("-").reverse().join("/") : "—";
+
+function OpeningForecast({ date, overdue }: { date?: string; overdue: boolean }) {
+  if (!date) return "—";
+  return <div className="flex flex-wrap items-center gap-2">
+    <time dateTime={date}>{date.split("-").reverse().join("/")}</time>
+    {overdue && <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">Atrasada</span>}
+  </div>;
+}
 
 export default function ProcurementPlan({ projectCode, budgetCents, requisitions, orders, canManage = true }: {
   projectCode: string;
@@ -171,12 +179,18 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
     }
   }
 
+  const today = projectCalendarDate();
   function isMissingSc(number?: string) {
     const code = number?.trim();
     return Boolean(code && scCodes && orders && !scCodes.has(code) && !ordersBySc.has(code));
   }
   const missingCurrentSc = isMissingSc(scNumber);
   const missingViewedSc = isMissingSc(viewing?.scNumber);
+
+  function isOpeningOverdue(purchase: PlannedPurchase) {
+    return Boolean(purchase.scOpeningForecast && purchase.scOpeningForecast < today &&
+      (!purchase.scNumber?.trim() || isMissingSc(purchase.scNumber)));
+  }
 
   function orderDetails(number?: string, requisition?: string) {
     const linked = ordersBySc.get(requisition?.trim() ?? "");
@@ -329,7 +343,7 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
                 <th scope="row" className="p-3 align-top font-medium break-words">{purchase.title || "Sem título"}</th>
                 <td>{purchase.type}</td>
                 <td className="whitespace-nowrap text-right">{currency.format(purchase.estimatedCents / 100)}</td>
-                <td className="whitespace-nowrap">{displayDate(purchase.scOpeningForecast)}</td>
+                <td className="whitespace-nowrap"><OpeningForecast date={purchase.scOpeningForecast} overdue={isOpeningOverdue(purchase)} /></td>
                 <td className={missing ? "font-medium text-red-800" : undefined}>
                   {purchase.scNumber || "—"}{missing && <span className="sr-only"> ({missingScMessage})</span>}
                 </td>
@@ -355,7 +369,8 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
         </div>
         <div><dt className="text-slate-500">Tipo de contratação</dt><dd className="mt-1">{viewing.type}</dd></div>
         <div><dt className="text-slate-500">Valor estimado</dt><dd className="mt-1">{currency.format(viewing.estimatedCents / 100)}</dd></div>
-        <div><dt className="text-slate-500">Previsão de abertura da SC</dt><dd className="mt-1">{displayDate(viewing.scOpeningForecast)}</dd></div>
+        <div><dt className="text-slate-500">Previsão de abertura da SC</dt><dd className="mt-1"><OpeningForecast
+          date={viewing.scOpeningForecast} overdue={isOpeningOverdue(viewing)} /></dd></div>
         <div>
           <dt className="text-slate-500">Número da SC</dt>
           <dd className={missingViewedSc ? "mt-1 font-medium text-red-800" : "mt-1"}>

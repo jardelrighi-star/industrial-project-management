@@ -5,6 +5,7 @@ import { officialBudget } from "../../lib/finance/budget-reconciliation";
 import { calculateCommittedBreakdown } from "../../lib/finance/calculations";
 import type { FinanceData } from "../../lib/finance/types";
 import type { Project } from "../../lib/projects/types";
+import { projectCalendarDate } from "../../lib/projects/project-date";
 import { loadProcurementPlan } from "../../lib/projects/procurement-plan";
 import { loadOnlineProcurement } from "../../lib/online/operations";
 import { onlineMode } from "../../lib/online/state";
@@ -15,13 +16,6 @@ const money = (cents: number) => (cents / 100).toLocaleString("pt-BR", { style: 
 const percent = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 2 });
 const filterClass = "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm";
 const compare = new Intl.Collator("pt-BR", { numeric: true }).compare;
-const calendar = new Intl.DateTimeFormat("pt-BR", {
-  timeZone: "America/Sao_Paulo",
-  calendar: "gregory",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
 
 function distinctOptions(values: string[]) {
   return [...new Set(values.filter(Boolean))].sort(compare);
@@ -100,8 +94,7 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
     countsByStatus.set(status, (countsByStatus.get(status) ?? 0) + 1);
   }
   const statuses = [...countsByStatus].sort(([first], [second]) => compare(first, second));
-  const { year, month, day } = Object.fromEntries(calendar.formatToParts().map(({ type, value }) => [type, value]));
-  const today = `${year}-${month}-${day}`;
+  const today = projectCalendarDate();
   const overdueCount = visibleProjects.filter((project) =>
     project.status !== "Concluído" && project.status !== "Cancelado" &&
     /^\d{4}-\d{2}-\d{2}$/.test(project.finish) && project.finish < today,
