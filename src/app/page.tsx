@@ -94,6 +94,7 @@ const formBudget = formBaseline?.finance.budgets.find((budget) => budget.project
 function openDetails(project: Project) {
   setSelectedProjectCode(project.code);
   setActiveTab("Resumo");
+  if (window.matchMedia("(width < 48rem)").matches) window.scrollTo(0, 0);
 }
   useEffect(() => {
     let active = true;
@@ -382,7 +383,7 @@ function openDetails(project: Project) {
           <PortfolioDashboard projects={projects} financialState={financialState} actualCostsByProject={actualCostsByProject} />
         )}
         {loaded && activeSection === "Projetos" && !selectedProject && (
-        <section className="rounded-xl border bg-white p-5 shadow-sm">
+        <section className="rounded-xl border bg-white p-4 shadow-sm md:p-5">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h1 className="text-2xl font-bold">Projetos</h1>
@@ -399,13 +400,48 @@ function openDetails(project: Project) {
           </div>
 
           <input
+            type="search"
+            aria-label="Pesquisar projetos"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Pesquisar por código, projeto ou gestor do projeto..."
-            className="mb-5 w-full rounded-lg border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-500"
+            className="mb-5 w-full rounded-lg border border-slate-300 px-4 py-3 text-base outline-none md:text-sm focus:border-blue-500"
           />
 
-          <div className="overflow-x-auto">
+          <ul aria-label="Lista de projetos" className="space-y-3 md:hidden">
+            {filteredProjects.map((project) => (
+              <li key={project.code} className="rounded-lg border border-slate-200 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
+                  <span>{project.code}</span>
+                  <span className="rounded-full bg-slate-100 px-2 py-1">{project.status}</span>
+                </div>
+                <button type="button" onClick={() => openDetails(project)}
+                  className="min-h-11 w-full py-2 text-left font-semibold wrap-anywhere text-blue-700">
+                  {project.name}
+                </button>
+                {project.owner && <p className="text-sm wrap-anywhere text-slate-600">Gestor · {project.owner}</p>}
+                <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                  <div><dt className="text-xs text-slate-500">Orçamento</dt><dd className="font-medium wrap-anywhere">{budgetLabel(project.code)}</dd></div>
+                  <div><dt className="text-xs text-slate-500">Realizado</dt><dd className="font-medium wrap-anywhere">{actualCostLabel(project.code)}</dd></div>
+                  <div className="col-span-2">
+                    <dt className="text-xs text-slate-500">Avanço físico</dt>
+                    <dd className="mt-1 flex items-center gap-3">
+                      <span>{project.progress}%</span>
+                      <div aria-hidden="true" className="h-2 flex-1 rounded-full bg-slate-200">
+                        <div className="h-2 rounded-full bg-blue-600" style={{ width: `${project.progress}%` }} />
+                      </div>
+                    </dd>
+                  </div>
+                </dl>
+                {canAdminister && <div className="mt-2 flex gap-4 border-t pt-1 text-sm">
+                  <button type="button" onClick={() => openEdit(project)} className="min-h-11 text-blue-700">Editar</button>
+                  <button type="button" onClick={() => deleteProject(project.code)} className="min-h-11 text-red-700">Excluir</button>
+                </div>}
+              </li>
+            ))}
+          </ul>
+          {filteredProjects.length === 0 && <p className="py-4 text-center text-sm text-slate-500 md:hidden">Nenhum projeto encontrado.</p>}
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[900px] text-left text-sm">
  <thead className="border-b bg-slate-50 text-xs uppercase text-slate-500">
   <tr>
@@ -499,14 +535,14 @@ function openDetails(project: Project) {
     <div className="mb-6">
       <button
         onClick={() => setSelectedProjectCode(null)}
-        className="mb-4 text-sm text-blue-600 hover:underline"
+        className="mb-4 min-h-11 text-sm text-blue-600 hover:underline md:min-h-0"
       >
         ← Voltar aos projetos
       </button>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">
+          <h1 className="text-xl font-bold wrap-anywhere md:text-2xl">
             {selectedProject.name}
           </h1>
           <p className="mt-1 text-sm text-slate-500">
@@ -516,20 +552,20 @@ function openDetails(project: Project) {
 
         {canAdminister && <button
           onClick={() => openEdit(selectedProject)}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white"
+          className="min-h-11 rounded-lg bg-blue-600 px-4 py-2 text-sm text-white md:min-h-0"
         >
           Editar projeto
         </button>}
       </div>
     </div>
 
-    <div className="mb-6 flex flex-wrap gap-2 border-b">
+    <div role="group" aria-label="Seções do projeto" className="mb-6 grid grid-cols-2 gap-2 border-b md:flex md:flex-wrap">
       {projectTabs.map((tab) => (
         <button
           key={tab}
           onClick={() => setActiveTab(tab)}
           aria-pressed={activeTab === tab}
-          className={`border-b-2 px-4 py-3 text-sm font-medium ${
+          className={`min-h-11 border-b-2 px-2 py-2 text-sm font-medium md:px-4 md:py-3 ${
             activeTab === tab
               ? "border-blue-600 text-blue-600"
               : "border-transparent text-slate-500 hover:text-slate-800"
@@ -541,7 +577,7 @@ function openDetails(project: Project) {
     </div>
 
     {activeTab === "Resumo" && (
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-2 gap-2 md:gap-4 xl:grid-cols-3">
         {[
           ["Gestor do projeto", selectedProject.owner],
           ["Gerente", selectedProject.manager],
@@ -556,9 +592,9 @@ function openDetails(project: Project) {
           ["Avanço físico", `${selectedProject.progress}%`],
           ["Autorização para execução", selectedProject.executionAuthorization?.status === "pending" ? "Pendente · sem aprovação externa registrada" : "Não informada"],
         ].map(([label, value]) => (
-          <div key={label} className="rounded-xl border bg-white p-5 shadow-sm">
+          <div key={label} className="min-w-0 rounded-xl border bg-white p-3 shadow-sm md:p-5">
             <p className="text-sm text-slate-500">{label}</p>
-            <p className="mt-2 font-semibold">{value || "-"}</p>
+            <p className="mt-2 text-sm font-semibold wrap-anywhere md:text-base">{value || "-"}</p>
           </div>
         ))}
       </div>
