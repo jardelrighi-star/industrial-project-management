@@ -16,7 +16,7 @@ export type PortfolioFinancialState = { status: "loading" | "error" } | { status
 
 const money = (cents: number) => (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const percent = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 2 });
-const filterClass = "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm";
+const filterClass = "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base max-md:min-h-11 md:text-sm";
 const compare = new Intl.Collator("pt-BR", { numeric: true }).compare;
 const overdueScLabel = "SC em atraso";
 const missingOrderForecastLabel = "SCs sem previsão de pedido";
@@ -35,6 +35,7 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
   financialState: PortfolioFinancialState;
   actualCostsByProject: ReadonlyMap<string, number>;
 }) {
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [department, setDepartment] = useState("");
   const [owner, setOwner] = useState("");
   const [projectCode, setProjectCode] = useState("");
@@ -166,39 +167,47 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
   ];
 
   return <>
-    <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
+    <header className="mb-5 flex flex-wrap items-center justify-between gap-4 md:mb-8">
       <div>
         <h1 className="text-2xl font-bold">Dashboard</h1>
         <p className="mt-1 text-sm text-slate-500">Visão geral da carteira de projetos industriais</p>
       </div>
-      <div className="rounded-lg border bg-white px-4 py-2 text-sm">Unidade Industrial | 2026</div>
+      <div className="hidden rounded-lg border bg-white px-4 py-2 text-sm md:block">Unidade Industrial | 2026</div>
     </header>
-    <div role="group" aria-label="Filtros do Dashboard" className="mb-6 grid gap-4 rounded-xl border bg-white p-4 shadow-sm sm:grid-cols-3">
-      <label className="text-sm font-medium">Departamento
-        <select className={filterClass} value={selectedDepartment} onChange={(event) => {
-          setDepartment(event.target.value);
-          setOwner("");
-          setProjectCode("");
-        }}>
-          <option value="">Todos os departamentos</option>
-          {departments.map((option) => <option key={option} value={option}>{option}</option>)}
-        </select>
-      </label>
-      <label className="text-sm font-medium">Gestor do projeto
-        <select className={filterClass} value={selectedOwner} onChange={(event) => {
-          setOwner(event.target.value);
-          setProjectCode("");
-        }}>
-          <option value="">Todos os gestores de projeto</option>
-          {owners.map((option) => <option key={option} value={option}>{option}</option>)}
-        </select>
-      </label>
-      <label className="text-sm font-medium">Projeto
-        <select className={filterClass} value={selectedProject?.code ?? ""} onChange={(event) => setProjectCode(event.target.value)}>
-          <option value="">Todos os projetos</option>
-          {projectOptions.map((project) => <option key={project.code} value={project.code}>{project.code} - {project.name}</option>)}
-        </select>
-      </label>
+    <div className="mb-6 rounded-xl border bg-white shadow-sm">
+      <button type="button" aria-expanded={filtersOpen} aria-controls="dashboard-filters"
+        onClick={() => setFiltersOpen((open) => !open)}
+        className="flex min-h-11 w-full items-center justify-between gap-2 px-4 text-left text-sm font-semibold md:hidden">
+        <span>Filtros{hasFilter && ` (${[selectedDepartment, selectedOwner, selectedProject].filter(Boolean).length} ativos)`}</span>
+        <span aria-hidden="true">{filtersOpen ? "▴" : "▾"}</span>
+      </button>
+      <div id="dashboard-filters" role="group" aria-label="Filtros do Dashboard" className={`gap-4 p-4 md:grid md:grid-cols-3 ${filtersOpen ? "grid border-t md:border-0" : "hidden"}`}>
+        <label className="min-w-0 text-sm font-medium">Departamento
+          <select className={filterClass} value={selectedDepartment} onChange={(event) => {
+            setDepartment(event.target.value);
+            setOwner("");
+            setProjectCode("");
+          }}>
+            <option value="">Todos os departamentos</option>
+            {departments.map((option) => <option key={option} value={option}>{option}</option>)}
+          </select>
+        </label>
+        <label className="min-w-0 text-sm font-medium">Gestor do projeto
+          <select className={filterClass} value={selectedOwner} onChange={(event) => {
+            setOwner(event.target.value);
+            setProjectCode("");
+          }}>
+            <option value="">Todos os gestores de projeto</option>
+            {owners.map((option) => <option key={option} value={option}>{option}</option>)}
+          </select>
+        </label>
+        <label className="min-w-0 text-sm font-medium">Projeto
+          <select className={filterClass} value={selectedProject?.code ?? ""} onChange={(event) => setProjectCode(event.target.value)}>
+            <option value="">Todos os projetos</option>
+            {projectOptions.map((project) => <option key={project.code} value={project.code}>{project.code} - {project.name}</option>)}
+          </select>
+        </label>
+      </div>
     </div>
     <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-4">
       <div className="rounded-xl border bg-white p-5 shadow-sm">
@@ -260,13 +269,13 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
       </div>)}
     </section>
     <dialog ref={detailsDialog} aria-labelledby="overdue-purchases-heading"
-      className="m-auto max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-w-2xl overflow-y-auto rounded-xl border bg-white p-6 shadow-xl backdrop:bg-slate-950/60">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      className="m-auto h-dvh max-h-dvh w-full max-w-full overflow-y-auto overscroll-contain bg-white px-4 pb-6 shadow-xl backdrop:bg-slate-950/60 md:h-auto md:max-h-[calc(100%-2rem)] md:w-[calc(100%-2rem)] md:max-w-2xl md:rounded-xl md:border md:p-6">
+      <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b bg-white py-3 md:static md:flex-wrap md:border-0 md:p-0">
         <h2 id="overdue-purchases-heading" className="text-lg font-bold">
           {showOverduePurchases ? "Itens do Plano de Aquisições em atraso" : missingOrderForecastLabel}
         </h2>
-        <form method="dialog">
-          <button type="submit" className="rounded-lg border px-3 py-2 text-sm hover:bg-slate-50">Fechar</button>
+        <form method="dialog" className="shrink-0">
+          <button type="submit" className="rounded-lg border px-3 py-2 text-sm hover:bg-slate-50 max-md:min-h-11">Fechar</button>
         </form>
       </div>
       {showOverduePurchases ? (overduePurchases === undefined ? <p className="mt-4 text-sm text-slate-600">{planningStatus}</p>

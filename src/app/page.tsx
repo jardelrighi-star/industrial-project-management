@@ -84,6 +84,7 @@ function WorkspaceHome({ session, logout }: { session?: OnlineSession; logout?: 
 const [selectedProjectCode, setSelectedProjectCode] = useState<string | null>(null);
 const [activeTab, setActiveTab] = useState<(typeof projectTabs)[number]>("Resumo");
 const [activeSection, setActiveSection] = useState("Dashboard");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
 const selectedProject = projects.find(
   (project) => project.code === selectedProjectCode
@@ -279,73 +280,83 @@ function openDetails(project: Project) {
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800 md:flex">
-      <aside className="w-full bg-slate-950 p-6 text-white md:min-h-screen md:w-64">
-        <div className="mb-10">
-          <div className="text-xl font-bold tracking-wide">INDUSTRIAL</div>
-          <div className="text-sm text-blue-300">PROJECT MANAGEMENT</div>
-          <div className="mt-2 text-xs text-slate-400">
-            Engineering & Maintenance
+      <aside className="w-full bg-slate-950 p-4 text-white md:min-h-screen md:w-64 md:p-6">
+        <div className="flex items-center justify-between gap-4 md:mb-10 md:block">
+          <div>
+            <div className="text-xl font-bold tracking-wide">INDUSTRIAL</div>
+            <div className="text-sm text-blue-300">PROJECT MANAGEMENT</div>
+            <div className="mt-2 hidden text-xs text-slate-400 md:block">
+              Engineering & Maintenance
+            </div>
           </div>
+          <button type="button" aria-expanded={mobileMenuOpen} aria-controls="main-menu"
+            onClick={() => setMobileMenuOpen((open) => !open)}
+            className="min-h-11 rounded-lg border border-slate-600 px-3 text-sm font-medium md:hidden">
+            {mobileMenuOpen ? "Fechar menu" : "Menu"}
+          </button>
         </div>
 
-        <div className="mb-3 text-xs uppercase tracking-widest text-slate-500">
-          Menu principal
-        </div>
+        <div id="main-menu" className={mobileMenuOpen ? "mt-4 md:mt-0" : "hidden md:block"}>
+          <div className="mb-3 text-xs uppercase tracking-widest text-slate-500">
+            Menu principal
+          </div>
 
-        <nav className="space-y-2">
-          {[
-            ["▦", "Dashboard"],
-            ["▤", "Projetos"],
-            ["▣", "Compras"],
-            ["§", "Jurídico"],
-            ["⇩", "Importações"],
-            ["▦", "Cronogramas"],
-            ["R$", "Financeiro"],
-            ["⇄", "Reconciliação"],
-            ["✓", "Análise de custos"],
-            ["▧", "Relatórios"],
-            ["⚙", "Configurações"],
-          ].filter(([, label]) => {
-            if (label === "Importações" || label === "Reconciliação") return canAdminister;
-            if (label === "Análise de custos") return canAnalyze;
-            if (label === "Compras") return canAccessPurchasing;
-            if (label === "Jurídico") return canAccessLegal;
-            return true;
-          }).map(([icon, label]) => (
-            <button
-              key={label}
-              onClick={() => {
-                if (["Dashboard", "Projetos", "Compras", "Jurídico", "Importações", "Reconciliação", "Análise de custos", "Relatórios"].includes(label)) {
-                  setActiveSection(label);
-                  setSelectedProjectCode(null);
-                  setFormOpen(false);
-                } else alert("Este módulo será desenvolvido em uma próxima etapa.");
-              }}
-              aria-current={activeSection === label ? "page" : undefined}
-              className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left text-sm ${
-                activeSection === label
-                  ? "bg-blue-600 text-white"
-                  : "text-slate-300 hover:bg-slate-800"
-              }`}
-            >
-              <span>{icon}</span>
-              {label}
-            </button>
-          ))}
-        </nav>
+          <nav className="space-y-2">
+            {[
+              ["▦", "Dashboard"],
+              ["▤", "Projetos"],
+              ["▣", "Compras"],
+              ["§", "Jurídico"],
+              ["⇩", "Importações"],
+              ["▦", "Cronogramas"],
+              ["R$", "Financeiro"],
+              ["⇄", "Reconciliação"],
+              ["✓", "Análise de custos"],
+              ["▧", "Relatórios"],
+              ["⚙", "Configurações"],
+            ].filter(([, label]) => {
+              if (label === "Importações" || label === "Reconciliação") return canAdminister;
+              if (label === "Análise de custos") return canAnalyze;
+              if (label === "Compras") return canAccessPurchasing;
+              if (label === "Jurídico") return canAccessLegal;
+              return true;
+            }).map(([icon, label]) => (
+              <button
+                key={label}
+                onClick={() => {
+                  if (["Dashboard", "Projetos", "Compras", "Jurídico", "Importações", "Reconciliação", "Análise de custos", "Relatórios"].includes(label)) {
+                    setActiveSection(label);
+                    setMobileMenuOpen(false);
+                    setSelectedProjectCode(null);
+                    setFormOpen(false);
+                  } else alert("Este módulo será desenvolvido em uma próxima etapa.");
+                }}
+                aria-current={activeSection === label ? "page" : undefined}
+                className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left text-sm ${
+                  activeSection === label
+                    ? "bg-blue-600 text-white"
+                    : "text-slate-300 hover:bg-slate-800"
+                }`}
+              >
+                <span>{icon}</span>
+                {label}
+              </button>
+            ))}
+          </nav>
 
-        {session && <div className="mt-6 space-y-2 border-t border-slate-800 pt-4 text-sm">
-          <p className="break-all text-slate-300">{session.email}</p>
-          <button type="button" onClick={logout} className="font-medium text-blue-300 hover:underline">Sair</button>
-        </div>}
-        <div className="mt-16 border-t border-slate-800 pt-5 text-xs text-slate-500">
-          Industrial Project Management
-          <br />
-          Versão 0.2
+          {session && <div className="mt-6 space-y-2 border-t border-slate-800 pt-4 text-sm">
+            <p className="break-all text-slate-300">{session.email}</p>
+            <button type="button" onClick={logout} className="font-medium text-blue-300 hover:underline">Sair</button>
+          </div>}
+          <div className="mt-16 hidden border-t border-slate-800 pt-5 text-xs text-slate-500 md:block">
+            Industrial Project Management
+            <br />
+            Versão 0.2
+          </div>
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1 p-5 md:p-8">
+      <main className="min-w-0 flex-1 p-4 md:p-8">
         {loadError && <div role="alert" className="mb-6 rounded-xl border border-red-200 bg-red-50 p-5 text-red-800">
           <p>{loadError}</p>
           <button type="button" className="mt-3 rounded-lg border px-4 py-2" onClick={() => { setLoadError(""); setLoadAttempt((value) => value + 1); }}>Tentar novamente</button>
