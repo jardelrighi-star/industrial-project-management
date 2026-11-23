@@ -572,7 +572,7 @@ function openDetails(project: Project) {
 
     {activeTab === "Plano de Aquisições" && (
       <ProcurementPlan key={selectedProject.code} projectCode={selectedProject.code}
-        canManage={canManage}
+        canManage={canManage} canReconstruct={canAdminister}
         budgetCents={financialState.status === "ready"
           ? financialState.data.budgets.find((budget) => budget.projectCode === selectedProject.code)?.updatedAmount ?? null
           : undefined}

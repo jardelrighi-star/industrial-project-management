@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { LocalStorageFinanceRepository } from "../../lib/finance/repository";
 import { orderRequisitionCodes } from "../../lib/finance/calculations";
 import { loadScContracts, type ScContract } from "../../lib/finance/sc-contract";
 import { loadScOrderForecasts, scOrderKey, type ScOrderForecast } from "../../lib/finance/sc-order-forecast";
@@ -13,6 +14,8 @@ import {
   addPlannedPurchase, addProcurementType, deletePlannedPurchase, isScOpeningOverdue, loadProcurementPlan,
   updatePlannedPurchase, type PlannedPurchase,
 } from "../../lib/projects/procurement-plan";
+
+import { previewProcurementHistory, procurementHistorySignature, saveProcurementHistory } from "../../lib/projects/procurement-history";
 
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const percent = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 2 });
@@ -32,12 +35,13 @@ function OpeningForecast({ date, overdue }: { date?: string; overdue: boolean })
   </div>;
 }
 
-export default function ProcurementPlan({ projectCode, budgetCents, requisitions, orders, canManage = true }: {
+export default function ProcurementPlan({ projectCode, budgetCents, requisitions, orders, canManage = true, canReconstruct = canManage }: {
   projectCode: string;
   budgetCents?: number | null;
   requisitions?: readonly PurchaseRequisition[];
   orders?: readonly PurchaseOrder[];
   canManage?: boolean;
+  canReconstruct?: boolean;
 }) {
   const [plan, setPlan] = useState<ReturnType<typeof loadProcurementPlan> | null>(null);
   const [orderForecasts, setOrderForecasts] = useState<ScOrderForecast[]>([]);
@@ -55,9 +59,37 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
   const [orderNumber, setOrderNumber] = useState("");
   const [addingType, setAddingType] = useState(false);
   const [newType, setNewType] = useState("");
-  const [busy, setBusy] = useState<"purchase" | "type" | "delete" | null>(null);
+  const [busy, setBusy] = useState<"purchase" | "type" | "delete" | "history" | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+
+  const [historyPreview, setHistoryPreview] = useState<ReturnType<typeof previewProcurementHistory> | null>(null);
+
+  async function reconstructHistory(confirm: boolean) {
+    if (busy) return;
+    setBusy("history");
+    setError("");
+    setNotice("");
+    try {
+      if (!confirm || !historyPreview) {
+        const storage = onlineMode ? await readOnlineStorage() : window.localStorage;
+        const finance = await new LocalStorageFinanceRepository(() => storage).load();
+        setHistoryPreview(previewProcurementHistory(projectCode, finance, loadProcurementPlan(storage).purchases));
+      } else {
+        const signature = await procurementHistorySignature(historyPreview);
+        const next = onlineMode
+          ? (await changeOnlineProcurement(projectCode, "reconstruct", { signature })).plan
+          : await saveProcurementHistory(projectCode, signature, window.localStorage);
+        setPlan(next);
+        setHistoryPreview(null);
+        setNotice("Histórico de aquisições atualizado.");
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível reconstruir o histórico.");
+    } finally {
+      setBusy(null);
+    }
+  }
 
   useEffect(() => {
     let active = true;
@@ -203,7 +235,7 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
     return Boolean(code && scCodes && orders && !scCodes.has(code) && !ordersBySc.has(code));
   }
   const missingCurrentSc = isMissingSc(scNumber);
-  const missingViewedSc = isMissingSc(viewing?.scNumber);
+  const missingViewedSc = !viewing?.realized && isMissingSc(viewing?.scNumber);
 
   function orderDetails(number?: string, requisition?: string) {
     const linked = ordersBySc.get(requisition?.trim() ?? "");
@@ -347,6 +379,39 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
       </div>}
       <div className="overflow-x-auto rounded-xl border bg-white p-5 shadow-sm">
         <h3 className="mb-3 font-semibold">Contratações planejadas</h3>
+        {canReconstruct && <button type="button" disabled={busy !== null || formOpen}
+          onClick={() => { void reconstructHistory(false); }}
+          className="mb-4 rounded-lg border px-3 py-2 text-sm font-medium disabled:opacity-50">
+          Revisar histórico a partir dos custos
+        </button>}
+        {historyPreview && <section aria-label="Prévia de reconstrução" className="mb-4 space-y-3 rounded-lg border p-4 text-sm">
+          <h4 className="font-semibold">Prévia do histórico de aquisições</h4>
+          <p>{historyPreview.rows.filter((row) => !row.issue).length} pedidos disponíveis para inclusão ou atualização.
+            {" "}{historyPreview.unlinked} lançamentos sem vínculo utilizável em NF_PEDIDO.</p>
+          <ul className="max-h-80 divide-y overflow-y-auto">
+            {historyPreview.rows.map((row) => <li key={row.orderId} className="py-2">
+              <details>
+                <summary className="cursor-pointer">
+                  Pedido {row.orderNumber ?? row.orderId} · {row.costs.length} lançamentos · {currency.format(row.total / 100)}
+                  {" · "}{row.issue ?? (row.itemId ? "Atualizar item existente" : "Incluir item histórico")}
+                </summary>
+                <p className="mt-1">SC {row.scNumber ?? "sem vínculo confirmado"}</p>
+                <ul className="mt-1 list-disc pl-6">
+                  {row.costs.map((cost) => <li key={cost.transactionId}>
+                    Nota {cost.fiscalDocument} · {cost.description || cost.assetDescription || "Sem descrição"} · {currency.format(cost.amount / 100)}
+                  </li>)}
+                </ul>
+              </details>
+            </li>)}
+          </ul>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" disabled={busy !== null || !historyPreview.rows.some((row) => !row.issue)}
+              onClick={() => { void reconstructHistory(true); }}
+              className="rounded-lg bg-blue-700 px-3 py-2 font-medium text-white disabled:opacity-50">Confirmar histórico</button>
+            <button type="button" disabled={busy !== null} onClick={() => setHistoryPreview(null)}
+              className="rounded-lg border px-3 py-2 font-medium">Fechar prévia</button>
+          </div>
+        </section>}
         {purchases.length === 0 ? <p className="text-sm text-slate-500">Nenhuma aquisição planejada para este projeto.</p> :
           <table aria-label="Contratações planejadas" className="w-full min-w-[1180px] text-left text-sm">
             <thead className="bg-slate-50"><tr>
@@ -359,16 +424,17 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
               <th scope="col" className="p-3">Previsão de geração do pedido</th>
               <th scope="col" className="p-3">Número do pedido</th>
               <th scope="col" className="p-3 text-right">Saldo do pedido</th>
+              <th scope="col" className="p-3 text-right">Valor realizado</th>
               <th scope="col" className="p-3 text-right">Ações</th>
             </tr></thead>
             <tbody>{purchases.map((purchase) => {
-              const missing = isMissingSc(purchase.scNumber);
+              const missing = !purchase.realized && isMissingSc(purchase.scNumber);
               const linkedOrder = orderDetails(purchase.orderNumber, purchase.scNumber);
               const contract = contractForSc(purchase.scNumber);
               return <tr key={purchase.id} className="border-t [&_td]:p-3 [&_td]:align-top">
-                <th scope="row" className="p-3 align-top font-medium break-words">{purchase.title || "Sem título"}</th>
+                <th scope="row" className="p-3 align-top font-medium break-words">{purchase.title || "Sem título"}{purchase.realized && <span className="block text-xs text-slate-500">Com custo realizado</span>}</th>
                 <td>{purchase.type}</td>
-                <td className="whitespace-nowrap text-right">{currency.format(purchase.estimatedCents / 100)}</td>
+                <td className="whitespace-nowrap text-right">{purchase.historical ? "—" : currency.format(purchase.estimatedCents / 100)}</td>
                 <td className="whitespace-nowrap"><OpeningForecast date={purchase.scOpeningForecast} overdue={isScOpeningOverdue(purchase, today, missing)} /></td>
                 <td className={missing ? "font-medium text-red-800" : undefined}>
                   {purchase.scNumber || "—"}{missing && <span className="sr-only"> ({missingScMessage})</span>}
@@ -376,10 +442,11 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
                 <td>{contractRequirement(contract)}</td>
                 <td className="whitespace-nowrap"><ForecastDate date={contract?.required ? contract.completionDate : undefined} /></td>
                 <td className="whitespace-nowrap"><ForecastDate date={orderForecastDate(purchase.scNumber)} /></td>
-                <td className={linkedOrder.issue ? "font-medium text-red-800" : undefined}>
-                  {linkedOrder.numbers || "—"}{linkedOrder.issue && <span className="sr-only"> ({linkedOrder.issue})</span>}
+                <td className={!purchase.realized && linkedOrder.issue ? "font-medium text-red-800" : undefined}>
+                  {purchase.realized ? (purchase.orderNumber || purchase.realized.orderId) : linkedOrder.numbers || "—"}{!purchase.realized && linkedOrder.issue && <span className="sr-only"> ({linkedOrder.issue})</span>}
                 </td>
                 <td className="whitespace-nowrap text-right">{linkedOrder.amount}</td>
+                <td className="whitespace-nowrap text-right">{purchase.realized ? currency.format(purchase.realized.cents / 100) : "—"}</td>
                 <td className="text-right"><button type="button" disabled={formOpen} onClick={() => setViewing(purchase)}
                   aria-label={`Visualizar ${purchase.title || purchase.description}`}
                   className="font-medium text-blue-700 hover:underline disabled:opacity-50">Visualizar</button></td>
@@ -397,7 +464,7 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
           <dd className="mt-1 whitespace-pre-wrap break-words">{viewing.description}</dd>
         </div>
         <div><dt className="text-slate-500">Tipo de contratação</dt><dd className="mt-1">{viewing.type}</dd></div>
-        <div><dt className="text-slate-500">Valor estimado</dt><dd className="mt-1">{currency.format(viewing.estimatedCents / 100)}</dd></div>
+        <div><dt className="text-slate-500">Valor estimado</dt><dd className="mt-1">{viewing.historical ? "—" : currency.format(viewing.estimatedCents / 100)}</dd></div>
         <div><dt className="text-slate-500">Previsão de abertura da SC</dt><dd className="mt-1"><OpeningForecast
           date={viewing.scOpeningForecast} overdue={isScOpeningOverdue(viewing, today, missingViewedSc)} /></dd></div>
         <div>
@@ -413,15 +480,20 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
           <ForecastDate date={orderForecastDate(viewing.scNumber)} /></dd></div>
         <div>
           <dt className="text-slate-500">Número do pedido</dt>
-          <dd className={viewedOrder.issue ? "mt-1 font-medium text-red-800" : "mt-1"}>
-            {viewedOrder.numbers || "—"}{viewedOrder.issue && <span className="sr-only"> ({viewedOrder.issue})</span>}
+          <dd className={!viewing.realized && viewedOrder.issue ? "mt-1 font-medium text-red-800" : "mt-1"}>
+            {viewing.realized ? (viewing.orderNumber || viewing.realized.orderId) : viewedOrder.numbers || "—"}{!viewing.realized && viewedOrder.issue && <span className="sr-only"> ({viewedOrder.issue})</span>}
           </dd>
         </div>
         <div><dt className="text-slate-500">Saldo do pedido</dt><dd className="mt-1">{viewedOrder.amount}</dd></div>
+        {viewing.realized && <>
+          <div><dt className="text-slate-500">Valor realizado</dt><dd>{currency.format(viewing.realized.cents / 100)}</dd></div>
+          <div><dt className="text-slate-500">Número único do pedido</dt><dd>{viewing.realized.orderId}</dd></div>
+          <div className="sm:col-span-2"><dt className="text-slate-500">Notas fiscais · {viewing.realized.lineCount} lançamentos</dt><dd>{viewing.realized.documents.join(", ")}</dd></div>
+        </>}
       </dl>
       <div className="mt-6 flex justify-end gap-2">
         <button type="button" onClick={() => detailsDialog.current?.close()} className="rounded-lg border px-4 py-2 text-sm font-medium">Fechar</button>
-        {canManage && <button type="button" onClick={() => { detailsDialog.current?.close(); openEdit(viewing); }}
+        {canManage && !viewing.historical && <button type="button" onClick={() => { detailsDialog.current?.close(); openEdit(viewing); }}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white">Editar</button>}
       </div>
     </dialog>}

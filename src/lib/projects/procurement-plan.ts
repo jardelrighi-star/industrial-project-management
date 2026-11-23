@@ -14,6 +14,8 @@ export type PlannedPurchase = {
   scNumber?: string;
   scOpeningForecast?: string;
   orderNumber?: string;
+  historical?: true;
+  realized?: { orderId: string; cents: number; lineCount: number; documents: string[] };
 };
 
 type ProcurementPlan = { types: string[]; purchases: PlannedPurchase[] };
@@ -24,11 +26,11 @@ type PurchaseDraft = {
 type StoragePort = Pick<Storage, "getItem" | "setItem">;
 
 export function isScOpeningOverdue(
-  purchase: Pick<PlannedPurchase, "scOpeningForecast" | "scNumber">,
+  purchase: Pick<PlannedPurchase, "scOpeningForecast" | "scNumber" | "realized">,
   today: string,
   scMissingFromFinance = false,
 ): boolean {
-  return Boolean(purchase.scOpeningForecast && purchase.scOpeningForecast < today &&
+  return Boolean(!purchase.realized && purchase.scOpeningForecast && purchase.scOpeningForecast < today &&
     (!purchase.scNumber?.trim() || scMissingFromFinance));
 }
 
@@ -39,7 +41,13 @@ function typeKey(value: string) {
 function isPlannedPurchase(value: unknown): value is PlannedPurchase {
   if (typeof value !== "object" || value === null) return false;
   const row = value as Partial<PlannedPurchase>;
-  return typeof row.id === "string" && !!row.id && typeof row.projectCode === "string" &&
+  const realized = row.realized;
+  return (row.historical === undefined || (row.historical === true && !!realized)) &&
+    (realized === undefined || (!!realized && typeof realized.orderId === "string" && Boolean(realized.orderId) &&
+      Number.isSafeInteger(realized.cents) && realized.cents >= 0 &&
+      Number.isSafeInteger(realized.lineCount) && realized.lineCount > 0 &&
+      Array.isArray(realized.documents) && realized.documents.every((document) => typeof document === "string"))) &&
+    typeof row.id === "string" && !!row.id && typeof row.projectCode === "string" &&
     (row.title === undefined || (typeof row.title === "string" && !!row.title.trim())) &&
     (row.scNumber === undefined || typeof row.scNumber === "string") &&
     (row.scOpeningForecast === undefined || typeof row.scOpeningForecast === "string") &&
@@ -87,7 +95,7 @@ async function savePlannedPurchase(
   const estimatedCents = parseBrlCents(draft.estimatedAmount);
   const scNumber = draft.scNumber?.trim();
   const scOpeningForecast = draft.scOpeningForecast?.trim();
-  const orderNumber = draft.orderNumber?.trim();
+  const orderNumber = draft.orderNumber?.trim() ?? "";
   if (estimatedCents < 0) throw new Error("O valor estimado deve ser igual ou maior que zero.");
   return withStorageWriteLock(async () => {
     const plan = loadProcurementPlan(storage);
@@ -102,7 +110,11 @@ async function savePlannedPurchase(
     if (purchaseId !== undefined) {
       const index = purchases.findIndex((item) => item.id === purchaseId && item.projectCode === projectCode);
       if (index === -1) throw new Error("A contratação não está mais disponível neste projeto.");
-      purchases[index] = purchase;
+      if (purchases[index].historical) throw new Error("Atualize o histórico pela reconstrução de custos.");
+      if (purchases[index].realized && orderNumber !== (purchases[index].orderNumber ?? "")) {
+        throw new Error("O pedido de uma contratação com custo realizado é vinculado ao histórico.");
+      }
+      purchases[index] = { ...purchase, ...(purchases[index].realized ? { realized: purchases[index].realized } : {}) };
     } else {
       purchases.push(purchase);
     }

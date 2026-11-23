@@ -19,7 +19,7 @@ export async function saveOnlineScContract(request: ScContractChange) {
   return loadScContracts(memoryStorage(payload));
 }
 
-export async function changeOnlineProcurement(projectCode: string, operation: "addType" | "create" | "update" | "delete", fields: Record<string, unknown>) {
+export async function changeOnlineProcurement(projectCode: string, operation: "addType" | "create" | "update" | "delete" | "reconstruct", fields: Record<string, unknown>) {
   const result = await onlinePost<{ payload: WorkspacePayload; type?: string }>("/api/workspace", { ...fields, projectCode, action: "procurement", operation });
   return { plan: loadProcurementPlan(memoryStorage(result.payload)), type: result.type };
 }

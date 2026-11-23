@@ -8,6 +8,7 @@ import { compactFinanceStorage } from "../finance/storage-codec";
 import type { ActualCostReview, BudgetAdjustment } from "../finance/types";
 import { LocalStoragePortfolioModelRepository, PORTFOLIO_MODELS_KEY } from "../projects/portfolio-model-repository";
 import { addPlannedPurchase, addProcurementType, deletePlannedPurchase, loadProcurementPlan, PROCUREMENT_PLAN_KEY, updatePlannedPurchase } from "../projects/procurement-plan";
+import { saveProcurementHistory } from "../projects/procurement-history";
 import { LocalStorageProjectRepository } from "../projects/repository";
 import { OnlineError, type Member } from "./server";
 import { canScheduleContracts, canScheduleOrders, memoryStorage, type WorkspacePayload, type WorkspaceState } from "./state";
@@ -127,6 +128,11 @@ export async function changeProcurement(member: Member, payload: WorkspacePayloa
   if (!hasProjectAccess(member, projectCode)) throw new OnlineError(403, "Sua conta não tem acesso a este projeto.");
   const projects = await new LocalStorageProjectRepository(() => storage).load();
   if (!projects?.some((project) => project.code === projectCode)) throw new OnlineError(404, "Projeto não encontrado.");
+  if (input.operation === "reconstruct") {
+    if (member.role !== "admin") throw new OnlineError(403, "Apenas administradores podem reconstruir o histórico.");
+    await saveProcurementHistory(projectCode, string(input.signature, 64), storage);
+    return {};
+  }
   if (input.operation === "addType") {
     const { type } = await addProcurementType(string(input.name, 200), storage);
     return { type };
