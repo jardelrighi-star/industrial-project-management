@@ -131,6 +131,16 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
       else if (date < today) overdueOrderCount++;
     }
   }
+  const plannedOpeningDatesBySc = new Map<string, Set<string>>();
+  for (const purchase of plannedPurchases ?? []) {
+    const scNumber = purchase.scNumber?.trim();
+    const date = purchase.scOpeningForecast;
+    if (!scNumber || !date) continue;
+    const key = scOrderKey(purchase.projectCode, scNumber);
+    const dates = plannedOpeningDatesBySc.get(key) ?? new Set<string>();
+    dates.add(date);
+    plannedOpeningDatesBySc.set(key, dates);
+  }
   const requiredContracts = planning?.contracts.filter((contract) => visibleCodes.has(contract.projectCode) && contract.required);
   const missingContractForecastCount = requiredContracts?.filter((contract) => !contract.completionDate).length;
   const overdueContractCount = requiredContracts?.filter((contract) => contract.completionDate && contract.completionDate < today).length;
@@ -271,10 +281,16 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
         </ul>) : (missingOrderForecasts === undefined ? <p className="mt-4 text-sm text-slate-600">{pendingStatus}</p>
         : missingOrderForecasts.length === 0 ? <p className="mt-4 text-sm text-slate-600">Nenhuma SC sem previsão de pedido no filtro atual.</p>
         : <ul className="mt-4 divide-y text-sm">
-          {missingOrderForecasts.map((sc) => <li key={scOrderKey(sc.projectCode, sc.code)} className="break-words py-3">
-            <p className="font-semibold">SC {sc.code}</p>
-            <p className="mt-1 text-slate-600">Projeto {sc.projectCode}</p>
-          </li>)}
+          {missingOrderForecasts.map((sc) => {
+            const key = scOrderKey(sc.projectCode, sc.code);
+            const dates = [...(plannedOpeningDatesBySc.get(key) ?? [])].sort()
+              .map((date) => date.split("-").reverse().join("/"));
+            return <li key={key} className="break-words py-3">
+              <p className="font-semibold">SC {sc.code} · Projeto {sc.projectCode}</p>
+              <p className="mt-1 whitespace-pre-wrap">{sc.objective?.trim() || "Descrição não informada"}</p>
+              <p className="mt-1 text-slate-600">Previsão de abertura da SC no plano: {dates.join(", ") || "Não informada"}</p>
+            </li>;
+          })}
         </ul>)}
     </dialog>
   </>;
