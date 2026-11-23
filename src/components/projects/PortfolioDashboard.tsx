@@ -2,13 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { officialBudget } from "../../lib/finance/budget-reconciliation";
-import { calculateCommittedBreakdown, orderRequisitionCodes } from "../../lib/finance/calculations";
+import { calculateCommittedBreakdown } from "../../lib/finance/calculations";
 import { loadScContracts } from "../../lib/finance/sc-contract";
 import { loadScOrderForecasts, scOrderKey, scsAwaitingOrders } from "../../lib/finance/sc-order-forecast";
 import type { FinanceData } from "../../lib/finance/types";
 import type { Project } from "../../lib/projects/types";
 import { projectCalendarDate } from "../../lib/projects/project-date";
-import { isScOpeningOverdue, loadProcurementPlan, type PlannedPurchase } from "../../lib/projects/procurement-plan";
+import { isScOpeningOverdue, loadProcurementPlan } from "../../lib/projects/procurement-plan";
 import { readOnlineStorage } from "../../lib/online/client";
 import { onlineMode } from "../../lib/online/state";
 
@@ -117,17 +117,10 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
     project.status !== "Concluído" && project.status !== "Cancelado" &&
     /^\d{4}-\d{2}-\d{2}$/.test(project.finish) && project.finish < today,
   ).length;
-  let overduePurchases: PlannedPurchase[] | undefined;
+  const overduePurchases = plannedPurchases?.filter((purchase) => isScOpeningOverdue(purchase, today));
   let missingOrderForecasts: ReturnType<typeof scsAwaitingOrders> | undefined;
   let overdueOrderCount: number | null = null;
-  if (financialState.status === "ready" && planning && plannedPurchases) {
-    const confirmed = new Set(financialState.data.requisitions.map((sc) => scOrderKey(sc.projectCode, sc.code)));
-    for (const order of financialState.data.orders) {
-      for (const code of orderRequisitionCodes(order)) confirmed.add(scOrderKey(order.projectCode, code));
-    }
-    overduePurchases = plannedPurchases.filter((purchase) => isScOpeningOverdue(purchase, today,
-      !confirmed.has(scOrderKey(purchase.projectCode, purchase.scNumber?.trim() ?? "")),
-    ));
+  if (financialState.status === "ready" && planning) {
     const orderForecastDates = new Map(planning.orderForecasts.map((row) => [scOrderKey(row.projectCode, row.scNumber), row.forecastDate]));
     missingOrderForecasts = [];
     overdueOrderCount = 0;
@@ -142,17 +135,17 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
   const missingContractForecastCount = requiredContracts?.filter((contract) => !contract.completionDate).length;
   const overdueContractCount = requiredContracts?.filter((contract) => contract.completionDate && contract.completionDate < today).length;
   const pendingStatus = planning === null || financialState.status === "error" ? "Indisponível" : "Carregando…";
-  const contractStatus = planning === null ? "Indisponível" : "Carregando…";
-  const overdueScValue = overduePurchases?.length ?? pendingStatus;
+  const planningStatus = planning === null ? "Indisponível" : "Carregando…";
+  const overdueScValue = overduePurchases?.length ?? planningStatus;
   const cards = [
     ["Projetos cadastrados", visibleProjects.length, hasFilter ? "No filtro selecionado" : "Carteira total"],
     ["Status dos projetos", null, null],
     ["Projetos atrasados", overdueCount, "Prazo planejado vencido"],
-    [overdueScLabel, overdueScValue, "Contratações com abertura da SC vencida"],
+    [overdueScLabel, overdueScValue, "Contratações sem SC vinculada e com prazo de abertura vencido"],
     [missingOrderForecastLabel, missingOrderForecasts?.length ?? pendingStatus, "Solicitações ainda sem pedido e sem data prevista"],
-    ["Contratos sem previsão de conclusão", missingContractForecastCount ?? contractStatus, "SCs marcadas como necessitando contrato"],
+    ["Contratos sem previsão de conclusão", missingContractForecastCount ?? planningStatus, "SCs marcadas como necessitando contrato"],
     ["Pedidos em atraso", overdueOrderCount ?? pendingStatus, "SCs sem pedido com previsão vencida"],
-    ["Contratos em atraso", overdueContractCount ?? contractStatus, "Contratos necessários com previsão vencida"],
+    ["Contratos em atraso", overdueContractCount ?? planningStatus, "Contratos necessários com previsão vencida"],
   ] as const;
   const financialCards = [
     { label: "Custos realizados", total: Number.isSafeInteger(totalActual) ? totalActual : null },
@@ -266,15 +259,13 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
           <button type="submit" className="rounded-lg border px-3 py-2 text-sm hover:bg-slate-50">Fechar</button>
         </form>
       </div>
-      {showOverduePurchases ? (overduePurchases === undefined ? <p className="mt-4 text-sm text-slate-600">{pendingStatus}</p>
+      {showOverduePurchases ? (overduePurchases === undefined ? <p className="mt-4 text-sm text-slate-600">{planningStatus}</p>
         : overduePurchases.length === 0 ? <p className="mt-4 text-sm text-slate-600">Nenhum item com abertura da SC em atraso no filtro atual.</p>
         : <ul className="mt-4 divide-y text-sm">
           {overduePurchases.map((purchase) => <li key={purchase.id} className="break-words py-3">
             <p className="font-semibold">{purchase.title || purchase.description}</p>
             {purchase.title && <p className="mt-1 text-slate-600">{purchase.description}</p>}
-            <p className="mt-1 text-slate-600">
-              Projeto {purchase.projectCode}{purchase.scNumber?.trim() && ` · SC ${purchase.scNumber.trim()}`}
-            </p>
+            <p className="mt-1 text-slate-600">Projeto {purchase.projectCode}</p>
             <p className="mt-1 text-red-700">Abertura da SC prevista para {purchase.scOpeningForecast?.split("-").reverse().join("/")}</p>
           </li>)}
         </ul>) : (missingOrderForecasts === undefined ? <p className="mt-4 text-sm text-slate-600">{pendingStatus}</p>

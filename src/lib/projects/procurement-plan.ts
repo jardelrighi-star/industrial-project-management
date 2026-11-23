@@ -26,7 +26,7 @@ type StoragePort = Pick<Storage, "getItem" | "setItem">;
 export function isScOpeningOverdue(
   purchase: Pick<PlannedPurchase, "scOpeningForecast" | "scNumber">,
   today: string,
-  scMissingFromFinance: boolean,
+  scMissingFromFinance = false,
 ): boolean {
   return Boolean(purchase.scOpeningForecast && purchase.scOpeningForecast < today &&
     (!purchase.scNumber?.trim() || scMissingFromFinance));
