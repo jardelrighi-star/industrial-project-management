@@ -1,3 +1,5 @@
+import type { SankhyaReportFields } from "./sankhya-report-fields";
+
 /** All monetary amounts are BRL integer cents. Dates use YYYY-MM-DD. */
 export type ProjectCode = string;
 export type ExternalApprovalStatus = "pending" | "approved" | "rejected";
@@ -55,6 +57,7 @@ export interface Traceability {
 }
 
 export interface PurchaseRequisition {
+  reportFields?: SankhyaReportFields;
   code: string;
   /** Contracting purpose from Sankhya; empty when not provided by the source. */
   objective: string;
@@ -68,6 +71,7 @@ export interface PurchaseRequisition {
 }
 
 export interface PurchaseOrder {
+  reportFields?: SankhyaReportFields;
   number: string;
   /** Contracting purpose from Sankhya; empty when unknown. */
   objective: string;
@@ -92,6 +96,7 @@ export interface PurchaseOrder {
 }
 
 export interface ActualCost {
+  reportFields?: SankhyaReportFields;
   transactionId: string;
   /** Read-only flag used by a filtered portfolio to prevent ambiguous reviews. */
   reviewUnavailable?: true;

@@ -30,7 +30,7 @@ export default function SankhyaOrderImport({ projectCodes, repository, onImporte
     const id = ++request.current;
     setBusy("reading"); setPreview(null); setError(""); setNotice(""); setPage(0); setIssuesOnly(false);
     try {
-      if (!file.name.toLowerCase().endsWith(".xlsx")) throw new Error("Selecione um arquivo Excel .xlsx.");
+      if (!/\.xlsx?$/i.test(file.name)) throw new Error("Selecione um arquivo Excel .xls ou .xlsx.");
       if (file.size > 30 * 1024 * 1024) throw new Error("O arquivo excede o limite de 30 MB.");
       const workbook = await readOrderWorkbook(await file.arrayBuffer(), file.name);
       const next = previewOrderImport(workbook, projectCodes, await repository.load(), new Date().toISOString());
@@ -65,11 +65,11 @@ export default function SankhyaOrderImport({ projectCodes, repository, onImporte
   return <section className="rounded-xl border bg-white p-5 shadow-sm" aria-label="Importação de pedidos Sankhya">
     <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white">{open ? "Recolher importação de pedidos" : "Importar pedidos do Sankhya"}</button>
     {open && <div className="mt-4 space-y-4">
-      <p className="text-sm text-slate-600">Selecione Pedidos_Pendentes.xlsx do Sankhya ou o Painel Capex com a aba PENTENDES DE ENTREGA. Cód. Projeto deve corresponder ao código cadastrado do projeto, com orçamento financeiro.</p>
+      <p className="text-sm text-slate-600">Selecione Pedidos_Pendentes do Sankhya ou o Painel Capex com a aba PENTENDES DE ENTREGA. Cód. Projeto deve corresponder ao código cadastrado do projeto, com orçamento financeiro.</p>
       <p className="text-sm text-slate-600">Vlr Pend será o compromisso em aberto. Os itens serão somados por pedido e projeto. Valor total e faturado não são informados nesta exportação e não serão presumidos.</p>
       <p className="text-xs text-slate-500">SCs que já indicam este pedido não serão contadas novamente no comprometido. Pedidos ausentes na planilha são mantidos; a ausência não confirma faturamento ou cancelamento. Custos realizados e SCs não são alterados.</p>
-      <label className="block text-sm font-medium">Arquivo de pedidos (.xlsx)
-        <input type="file" accept=".xlsx" disabled={busy !== null} className="mt-2 block w-full rounded border p-2 text-sm" onChange={(event) => { void select(event.target.files?.[0]); event.target.value = ""; }} />
+      <label className="block text-sm font-medium">Arquivo de pedidos (.xls ou .xlsx)
+        <input type="file" accept=".xls,.xlsx" disabled={busy !== null} className="mt-2 block w-full rounded border p-2 text-sm" onChange={(event) => { void select(event.target.files?.[0]); event.target.value = ""; }} />
       </label>
       {busy === "reading" && <p role="status">Lendo pedidos e consolidando os itens…</p>}
       {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}

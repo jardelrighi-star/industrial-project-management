@@ -1,3 +1,4 @@
+import { scReportFields, readReportFields } from "./sankhya-report-fields";
 import type { FinanceData, PurchaseRequisition } from "./types";
 import type { FinanceRepository } from "./repository";
 import { normalizeFinanceData } from "./calculations";
@@ -16,7 +17,7 @@ export type RequisitionPreview = {
 };
 const text = (value: unknown) => value === null || value === undefined ? "" : String(value).trim();
 const key = (projectCode: string, code: string) => JSON.stringify([projectCode, code]);
-const content = (r: PurchaseRequisition) => JSON.stringify([r.projectCode, r.code, r.objective, r.amount, r.approvalStatus, r.convertedOrderNumber]);
+const content = (r: PurchaseRequisition) => JSON.stringify([r.projectCode, r.code, r.objective, r.amount, r.approvalStatus, r.convertedOrderNumber, r.reportFields]);
 function identifier(value: unknown) {
   if (typeof value === "number" && (!Number.isSafeInteger(value) || value < 0)) throw new Error("Identificador numérico inválido.");
   return text(value);
@@ -74,7 +75,9 @@ export function previewRequisitionImport(workbook: RequisitionWorkbook, projectC
       const previous = existingByKey.get(key(row.projectCode, row.code));
       const order = directExport ? previous?.convertedOrderNumber ?? "" : identifier(v["Nro. Pedido"]);
       const sourceRecordId = JSON.stringify(["sankhya-sc-v1", row.projectCode, row.code]);
+      const reportFields = readReportFields(scReportFields, group.map((item) => item.values), workbook.date1904);
       const requisition: PurchaseRequisition = {
+        ...(reportFields ? { reportFields } : {}),
         code: row.code, projectCode: row.projectCode, objective: [...objectives].sort().join("\n\n"), amount: row.amount,
         approvalStatus: confirmed === "sim" ? "approved" : "pending",
         convertedOrderNumber: !order || /^0+$/.test(order) ? null : order,

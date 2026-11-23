@@ -74,3 +74,38 @@ test("standalone SCs and orders consolidate items and keep distinct internal ord
   assert.equal(calculateCommittedTotal(projects, saved), 19500);
   assert.equal(previewOrderImport(workbook, projects, saved, date).duplicateCount, 3);
 });
+
+test("legacy XLS imports additional report fields with the existing financial values", async () => {
+  const { utils, write } = await import("xlsx");
+  const legacyExport = (headers: readonly string[], values: Record<string, unknown>) => {
+    const book = utils.book_new();
+    utils.book_append_sheet(book, utils.aoa_to_sheet([
+      ["Relatório"], ["Emissão"], [...headers], headers.map((header) => values[header]),
+    ]), "new sheet");
+    return write(book, { bookType: "biff8", type: "array" }) as ArrayBuffer;
+  };
+  const requisitions = await readRequisitionWorkbook(legacyExport(
+    ["Cód. Projeto", "Nr.Unico", "Vlr Pendente", "Confirmada", "Observação", "Nome Comprador", "Dt. Entrada/Saída"],
+    { "Cód. Projeto": 123, "Nr.Unico": 42, "Vlr Pendente": 25, Confirmada: "Sim", "Nome Comprador": "Compradora", "Dt. Entrada/Saída": 46000 },
+  ), "SC_s_Pendentes.xls");
+  const sc = previewRequisitionImport(requisitions, projects, finance(), date).rows[0].requisition;
+  assert.equal(sc?.amount, 2500);
+  assert.deepEqual(sc.reportFields, { Comprador: ["Compradora"], "Data de entrada/saída": ["09/12/2025"] });
+
+  const orders = await readOrderWorkbook(legacyExport(
+    ["Cód. Projeto", "Nr. Pedido", "Fornecedor", "Produto", "OBSERVACAO", "Vlr Pend", "Nr.Unico Ped.", "SC", "Desc.Grupo Produto"],
+    { "Cód. Projeto": 123, "Nr. Pedido": 51, Fornecedor: "Fornecedor", Produto: "Produto A", "Vlr Pend": 10, "Nr.Unico Ped.": 52, SC: 42, "Desc.Grupo Produto": "Grupo A" },
+  ), "Pedidos_Pendentes.xls");
+  const order = previewOrderImport(orders, projects, finance(), date).rows[0].order;
+  assert.equal(order?.openBalance, 1000);
+  assert.equal(order.requisitionCode, "42");
+  assert.deepEqual(order.reportFields?.["Grupo do produto"], ["Grupo A"]);
+
+  const costs = await readCostWorkbook(legacyExport(
+    [...COST_HEADERS, "NF_PEDIDO", "DESCROPER"],
+    { AD_PROJ_IHBL: 123, VLRTOT: 12, NUMNOTA: 1, NUNOTA: 2, CODEMP: 1, CODPROD: 3, DTENTSAI: 46000, NF_PEDIDO: 51, DESCROPER: "Operação A" },
+  ), "Exportação de Custo.xls");
+  const cost = previewCostImport(costs, projects, finance(), date).rows[0].cost;
+  assert.equal(cost?.amount, 1200);
+  assert.deepEqual(cost.reportFields, { NF_PEDIDO: ["51"], Operação: ["Operação A"] });
+});

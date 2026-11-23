@@ -1,5 +1,6 @@
 "use client";
 
+import SankhyaReportDetails from "./SankhyaReportDetails";
 import { useEffect, useState } from "react";
 import { evaluateActualCost, indexActualCostReviews } from "../../lib/finance/actual-cost-review";
 import { LocalStorageFinanceRepository } from "../../lib/finance/repository";
@@ -28,7 +29,7 @@ export default function ActualCostReport() {
     return {
       id: cost.transactionId, projectCode: cost.projectCode, document: cost.fiscalDocument,
       description: [cost.description, cost.assetDescription].filter(Boolean).join(" · "),
-      amount: cost.amount, status: evaluation.status, statusLabel: costReviewLabel(evaluation),
+      reportFields: cost.reportFields, amount: cost.amount, status: evaluation.status, statusLabel: costReviewLabel(evaluation),
       review: evaluation.status === "unavailable" ? undefined : evaluation.review,
     };
   }) : [];
@@ -45,7 +46,7 @@ export default function ActualCostReport() {
           <table className="w-full min-w-[680px] text-left text-sm">
             <thead className="bg-slate-50"><tr>{["Projeto", "Documento fiscal", "Descrição", "Valor", "Status"].map((column) => <th key={column} className="p-3" scope="col">{column}</th>)}</tr></thead>
             <tbody>{filtered.slice(page * pageSize, (page + 1) * pageSize).map((row) => <tr key={row.id} className="border-t [&_td]:p-3 [&_td]:align-top">
-              <td>{row.projectCode}</td><td>{row.document}</td><td>{row.description || "Não informado"}</td><td className="whitespace-nowrap">{currency.format(row.amount / 100)}</td>
+              <td>{row.projectCode}</td><td>{row.document}</td><td>{row.description || "Não informado"}<SankhyaReportDetails fields={row.reportFields} /></td><td className="whitespace-nowrap">{currency.format(row.amount / 100)}</td>
               <td><span className={row.status === "analyst_rejected" ? "font-semibold text-red-800" : ""}>{row.statusLabel}</span>{row.review && <CostReviewHistory review={row.review} />}</td>
             </tr>)}
             {!filtered.length && <tr><td colSpan={5} className="p-4 text-center">Nenhum lançamento neste filtro.</td></tr>}</tbody>

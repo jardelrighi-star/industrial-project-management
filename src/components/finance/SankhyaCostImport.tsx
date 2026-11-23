@@ -25,7 +25,7 @@ export default function SankhyaCostImport({ projectCodes, repository, onImported
     const id = ++request.current;
     setPreview(null); setError(""); setNotice(""); setPhase("reading"); setPage(0); setIssuesOnly(false);
     try {
-      if (!file.name.toLowerCase().endsWith(".xlsx")) throw new Error("Selecione um arquivo Excel .xlsx");
+      if (!/\.xlsx?$/i.test(file.name)) throw new Error("Selecione um arquivo Excel .xls ou .xlsx");
       if (file.size > 30 * 1024 * 1024) throw new Error("O arquivo excede o limite de 30 MB");
       const workbook = await readCostWorkbook(await file.arrayBuffer(), file.name);
       const data = await repository.load();
@@ -58,8 +58,8 @@ export default function SankhyaCostImport({ projectCodes, repository, onImported
       <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white">{open ? "Recolher importação" : "Importar custos realizados do Sankhya"}</button>
       {open && <div className="mt-4 space-y-4">
         <p className="text-sm text-slate-600">Na exportação direta, o vínculo exige um AD_PROJ_IHBL válido e cadastrado na carteira. O Painel Capex usa COD_INDORAMA.</p>
-        <label className="block text-sm font-medium">Arquivo Excel (.xlsx)
-          <input type="file" accept=".xlsx" disabled={phase === "saving"} className="mt-2 block w-full rounded border p-2 text-sm" onChange={(event) => { void selectFile(event.target.files?.[0]); event.target.value = ""; }} />
+        <label className="block text-sm font-medium">Arquivo Excel (.xls ou .xlsx)
+          <input type="file" accept=".xls,.xlsx" disabled={phase === "saving"} className="mt-2 block w-full rounded border p-2 text-sm" onChange={(event) => { void selectFile(event.target.files?.[0]); event.target.value = ""; }} />
         </label>
         {phase === "reading" && <p role="status">Lendo arquivo e preparando a prévia…</p>}
         {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}

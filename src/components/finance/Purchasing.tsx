@@ -1,5 +1,6 @@
 "use client";
 
+import SankhyaReportDetails from "./SankhyaReportDetails";
 import { useEffect, useState, type FormEvent } from "react";
 import { loadScContracts, saveScContract, type ScContract } from "../../lib/finance/sc-contract";
 import { loadScOrderForecasts, saveScOrderForecast, scOrderKey, scsAwaitingOrders, type ScOrderForecast } from "../../lib/finance/sc-order-forecast";
@@ -9,7 +10,7 @@ import { saveOnlineScContract, saveOnlineScOrderForecast } from "../../lib/onlin
 import { onlineMode } from "../../lib/online/state";
 import type { Project } from "../../lib/projects/types";
 
-type ScRow = Pick<PurchaseRequisition, "projectCode" | "code" | "objective">;
+type ScRow = Pick<PurchaseRequisition, "projectCode" | "code" | "objective" | "reportFields">;
 type Feedback = { message: string; error: boolean };
 const fieldClass = "rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm";
 const saveClass = "rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50";
@@ -165,7 +166,7 @@ export default function Purchasing({ projects, finance, financeUnavailable, lega
             return <tr key={key} className="border-t align-top">
               <td className="p-3">{sc.projectCode} - {projectNames.get(sc.projectCode)}</td>
               <th scope="row" className="p-3 font-medium">{sc.code}</th>
-              <td className="max-w-sm whitespace-pre-wrap break-words p-3">{sc.objective || "—"}</td>
+              <td className="max-w-sm whitespace-pre-wrap break-words p-3">{sc.objective || "—"}<SankhyaReportDetails fields={sc.reportFields} /></td>
               {!legal && <td className="p-3"><ContractRequirementField sc={sc} initialRequired={contract?.required ?? null} /></td>}
               <td className="p-3"><ForecastField sc={sc} initialDate={(legal ? contract?.completionDate : dates.get(key)) ?? null} legal={legal} /></td>
             </tr>;

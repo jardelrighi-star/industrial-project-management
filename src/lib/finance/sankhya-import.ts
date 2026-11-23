@@ -1,3 +1,4 @@
+import { costReportFields, readReportFields } from "./sankhya-report-fields";
 import type { ActualCost, FinanceData } from "./types";
 import type { FinanceRepository } from "./repository";
 import { normalizeFinanceData } from "./calculations";
@@ -26,7 +27,7 @@ function content(cost: ActualCost): string {
   const source = cost.sankhya;
   return JSON.stringify([
     cost.transactionId, cost.projectCode, cost.fiscalDocument, cost.documentEntryId,
-    cost.date, cost.amount, cost.supplier, cost.description ?? "", cost.assetDescription ?? "",
+    cost.reportFields, cost.date, cost.amount, cost.supplier, cost.description ?? "", cost.assetDescription ?? "",
     source ? [source.internalNoteId, source.projectYear, source.codproj, source.adProjIhbl,
       source.companyCode, source.productCode, source.partnerCode, source.costCenterCode,
       source.operationCode, source.identification] : null,
@@ -58,7 +59,9 @@ export function previewCostImport(workbook: CostWorkbook, registeredProjectCodes
       const product = string(v.CODPROD);
       if (!nunota || !company || !product || !row.document) throw new Error("CODEMP, NUNOTA, CODPROD e NUMNOTA são obrigatórios");
       const lineKey = identity(["sankhya-cost-snapshot-v1", String(rowNumber)]);
+      const reportFields = readReportFields(costReportFields, [v], workbook.date1904);
       const cost: ActualCost = {
+        ...(reportFields ? { reportFields } : {}),
         transactionId: lineKey, documentEntryId: lineKey, projectCode: row.projectCode,
         fiscalDocument: row.document, supplier: row.supplier, description: string(v.DESCRPROD), assetDescription: string(v.DESCRATIVO),
         date: parseExcelDate(v.DTENTSAI, workbook.date1904), amount: row.amount,

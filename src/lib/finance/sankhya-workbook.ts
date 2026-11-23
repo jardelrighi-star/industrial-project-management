@@ -1,3 +1,4 @@
+import { costReportFields } from "./sankhya-report-fields";
 import { COST_HEADERS, COST_SHEET, type CostWorkbook } from "./sankhya-import";
 
 export const SANKHYA_EXPORT_SHEET = "new sheet";
@@ -54,7 +55,26 @@ export async function loadSankhyaSheet(buffer: ArrayBuffer, sheetName: string) {
   if (buffer.byteLength > 30 * 1024 * 1024) throw new Error("O arquivo excede o limite de 30 MB");
   const { Workbook } = await import("exceljs");
   const workbook = new Workbook();
-  await workbook.xlsx.load(await isolateCostSheet(buffer, sheetName));
+  const signature = new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 8));
+  if ([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1].every((byte, index) => signature[index] === byte)) {
+    const { read, utils } = await import("xlsx");
+    const source = read(buffer, { type: "array", bookSheets: true });
+    const name = source.SheetNames.includes(sheetName) ? sheetName : SANKHYA_EXPORT_SHEET;
+    if (!source.SheetNames.includes(name)) throw new Error(`Aba obrigatória não encontrada: ${sheetName}`);
+    const parsed = read(buffer, { type: "array", sheets: name, sheetRows: 100004, cellText: false });
+    const legacySheet = parsed.Sheets[name];
+    const range = legacySheet?.["!fullref"] ?? legacySheet?.["!ref"];
+    if (range && utils.decode_range(range).e.r >= 100003) throw new Error("A aba excede o limite de 100 mil linhas");
+    workbook.properties.date1904 = !!parsed.Workbook?.WBProps?.date1904;
+    const target = workbook.addWorksheet(name);
+    for (const [address, cell] of Object.entries(legacySheet ?? {})) {
+      if (address.startsWith("!") || cell.t === "z") continue;
+      const result = cell.t === "e" ? { error: "#VALUE!" as const } : cell.v;
+      target.getCell(address).value = cell.f ? { formula: cell.f, result } : result ?? null;
+    }
+  } else {
+    await workbook.xlsx.load(await isolateCostSheet(buffer, sheetName));
+  }
   const sheet = workbook.getWorksheet(sheetName) ?? workbook.getWorksheet(SANKHYA_EXPORT_SHEET);
   if (!sheet) throw new Error(`Aba obrigatória não encontrada: ${sheetName}`);
   if (sheet.rowCount > 100003) throw new Error("A aba excede o limite de 100 mil linhas");
@@ -85,15 +105,18 @@ export async function readCostWorkbook(buffer: ArrayBuffer, sourceFile: string):
   });
   const missing = headers.filter((name) => !columns.has(name));
   if (missing.length) throw new Error(`Cabeçalho da linha 3 incompleto: ${missing.join(", ")}`);
+  const optional = Object.keys(costReportFields).filter((name) => columns.has(name));
   const rows: CostWorkbook["rows"] = [];
   sheet.eachRow((row, rowNumber) => {
     if (rowNumber < 4) return;
     if (directExport && isSankhyaExportFooter(sheet, row, columns.get("NUNOTA")!)) return;
     const values: Record<string, unknown> = {};
-    for (const name of headers) {
+    for (const name of [...headers, ...optional]) {
       const cell = row.getCell(columns.get(name)!);
       try { values[name] = scalar(cell.value); }
-      catch (error) { throw new Error(`Linha ${rowNumber}, ${name}: ${error instanceof Error ? error.message : "célula inválida"}`); }
+      catch (error) {
+        if (optional.includes(name)) continue;
+        throw new Error(`Linha ${rowNumber}, ${name}: ${error instanceof Error ? error.message : "célula inválida"}`); }
     }
     if (Object.values(values).every((value) => value === null || value === undefined || value === "")) return;
     rows.push({ rowNumber, values });

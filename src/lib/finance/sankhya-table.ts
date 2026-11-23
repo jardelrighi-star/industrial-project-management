@@ -2,11 +2,11 @@ import type { CellValue } from "exceljs";
 import { isSankhyaExportFooter, loadSankhyaSheet, SANKHYA_EXPORT_SHEET } from "./sankhya-workbook";
 
 export type SankhyaTableRow = { rowNumber: number; values: Record<string, unknown>; cachedFormulaCount: number; issue?: string };
-export type SankhyaTable = { sourceFile: string; sourceSheet?: string; rows: SankhyaTableRow[] };
+export type SankhyaTable = { sourceFile: string; sourceSheet?: string; date1904?: boolean; rows: SankhyaTableRow[] };
 
 /** Uses saved formula results only; Excel formulas are never executed. */
-export async function readSankhyaTable(buffer: ArrayBuffer, sourceFile: string, sheetName: string, legacyHeaders: readonly string[], { detectHeader = false, exportHeaders, exportIdentity }: { detectHeader?: boolean; exportHeaders?: readonly string[]; exportIdentity?: string } = {}): Promise<SankhyaTable> {
-  const { sheet } = await loadSankhyaSheet(buffer, sheetName);
+export async function readSankhyaTable(buffer: ArrayBuffer, sourceFile: string, sheetName: string, legacyHeaders: readonly string[], { detectHeader = false, exportHeaders, exportIdentity, optionalHeaders = [] }: { detectHeader?: boolean; exportHeaders?: readonly string[]; exportIdentity?: string; optionalHeaders?: readonly string[] } = {}): Promise<SankhyaTable> {
+  const { workbook, sheet } = await loadSankhyaSheet(buffer, sheetName);
   const directExport = sheet.name === SANKHYA_EXPORT_SHEET;
   const headers = directExport && exportHeaders ? exportHeaders : legacyHeaders;
   const scalar = (value: CellValue, onFormula: () => void): unknown => {
@@ -35,19 +35,20 @@ export async function readSankhyaTable(buffer: ArrayBuffer, sourceFile: string, 
         unreadableHeaders.push(cell.address);
         return;
       }
-      if (!headers.includes(name)) return;
+      if (!headers.includes(name) && !optionalHeaders.includes(name)) return;
       if (columns.has(name)) duplicate ??= name;
       columns.set(name, column);
     });
     return { rowNumber, columns, unreadableHeaders, duplicate };
   }
+  const countRequired = (columns: Map<string, number>) => headers.filter((name) => columns.has(name)).length;
   let header = readHeader(3);
-  if (detectHeader && header.columns.size < headers.length) {
+  if (detectHeader && countRequired(header.columns) < headers.length) {
     for (let rowNumber = 1; rowNumber <= Math.min(sheet.rowCount, 30); rowNumber++) {
       if (rowNumber === 3) continue;
       const candidate = readHeader(rowNumber);
-      if (candidate.columns.size > header.columns.size) header = candidate;
-      if (header.columns.size === headers.length) break;
+      if (countRequired(candidate.columns) > countRequired(header.columns)) header = candidate;
+      if (countRequired(header.columns) === headers.length) break;
     }
   }
   const { rowNumber: headerRow, columns, unreadableHeaders, duplicate } = header;
@@ -66,11 +67,11 @@ export async function readSankhyaTable(buffer: ArrayBuffer, sourceFile: string, 
     if (directExport && exportIdentity && isSankhyaExportFooter(sheet, row, columns.get(exportIdentity)!)) return;
     if (headers.every((name) => row.getCell(columns.get(name)!).value === null)) return;
     const source: SankhyaTableRow = { rowNumber, values: {}, cachedFormulaCount: 0 };
-    for (const name of headers) {
+    for (const name of columns.keys()) {
       try { source.values[name] = scalar(row.getCell(columns.get(name)!).value, () => source.cachedFormulaCount++); }
-      catch (cause) { source.issue = `${name}: ${cause instanceof Error ? cause.message : "Célula inválida."}`; }
+      catch (cause) { if (headers.includes(name)) source.issue = `${name}: ${cause instanceof Error ? cause.message : "Célula inválida."}`; }
     }
     rows.push(source);
   });
-  return { sourceFile, sourceSheet: sheet.name, rows };
+  return { sourceFile, sourceSheet: sheet.name, date1904: !!workbook.properties.date1904, rows };
 }

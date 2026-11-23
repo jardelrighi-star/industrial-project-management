@@ -100,6 +100,12 @@ export function validateFinanceData(value: unknown): asserts value is FinanceDat
         }
       } else {
         trace(r.traceability);
+        if (r.reportFields !== undefined) {
+          for (const values of Object.values(record(r.reportFields))) {
+            if (!Array.isArray(values)) fail("invalid Sankhya report field");
+            for (const value of values) text(value);
+          }
+        }
         if (key === "requisitions") {
           descriptiveText(r.objective);
           text(r.code); money(r.amount); optionalText(r.convertedOrderNumber);

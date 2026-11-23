@@ -1,5 +1,6 @@
 "use client";
 
+import SankhyaReportDetails from "./SankhyaReportDetails";
 import { useEffect, useState, type ReactNode } from "react";
 import { calculateActualCostTotal, calculateProjectFinancials, orderRequisitionCodes, purchaseOrderKey } from "../../lib/finance/calculations";
 import { LocalStorageFinanceRepository, type FinanceRepository } from "../../lib/finance/repository";
@@ -129,7 +130,7 @@ function ActualCostsTable({ costs, reviewIndex, onReview }: {
           const target = evaluation && evaluation.status !== "unavailable" ? targetsByIdentity.get(evaluation.identity) : undefined;
           return <tr key={cost.transactionId} className="border-t">
             <td className="break-all pl-9!">{cost.fiscalDocument}</td>
-            <td>{cost.description || "Não informado"}</td>
+            <td>{cost.description || "Não informado"}<SankhyaReportDetails fields={cost.reportFields} /></td>
             <td>{cost.supplier || "Não informado"}</td>
             <td className="whitespace-nowrap">{date(cost.date)}</td>
             <td className="whitespace-nowrap">{money(cost.amount)}</td>
@@ -202,11 +203,11 @@ export function FinanceProjectPanelView({ projectCode, state, onRetry, onReview 
         {requisitions.map((r) => {
           const linkedOrders = orders.filter((o) => orderRequisitionCodes(o).includes(r.code)).map((o) => o.number);
           const linked = [...new Set([...(r.convertedOrderNumber ? [r.convertedOrderNumber] : []), ...linkedOrders])];
-          return <tr key={r.code}><td>{r.code}</td><td>{r.objective || "Não informado"}</td><td className="whitespace-nowrap">{money(r.amount)}</td><td>{approvalLabels[r.approvalStatus]}</td><td>{linked.join(", ") || "Não informado"}</td><td>{linked.length ? "Convertida em pedido" : "Sem conversão registrada"}</td></tr>;
+          return <tr key={r.code}><td>{r.code}</td><td>{r.objective || "Não informado"}<SankhyaReportDetails fields={r.reportFields} /></td><td className="whitespace-nowrap">{money(r.amount)}</td><td>{approvalLabels[r.approvalStatus]}</td><td>{linked.join(", ") || "Não informado"}</td><td>{linked.length ? "Convertida em pedido" : "Sem conversão registrada"}</td></tr>;
         })}
       </FinancialTable>
       <FinancialTable title="Pedidos" columns={["Número", "Objetivo", "Fornecedor", "Valor total", "Valor faturado", "Saldo aberto", "Status"]} empty={!orders.length}>
-        {orders.map((o) => <tr key={purchaseOrderKey(o)}><td>{o.number}{o.sankhya?.internalOrderId && <div className="text-xs text-slate-500">Nº único {o.sankhya.internalOrderId}</div>}</td><td>{o.objective || "Não informado"}</td><td>{o.supplier || "Não informado"}</td><td className="whitespace-nowrap">{o.totalAmount === null ? "Não informado" : money(o.totalAmount)}</td><td className="whitespace-nowrap">{o.invoicedAmount === null ? "Não informado" : money(o.invoicedAmount)}</td><td className="whitespace-nowrap">{money(o.openBalance)}</td><td>{orderLabels[o.status]}</td></tr>)}
+        {orders.map((o) => <tr key={purchaseOrderKey(o)}><td>{o.number}{o.sankhya?.internalOrderId && <div className="text-xs text-slate-500">Nº único {o.sankhya.internalOrderId}</div>}</td><td>{o.objective || "Não informado"}<SankhyaReportDetails fields={o.reportFields} /></td><td>{o.supplier || "Não informado"}</td><td className="whitespace-nowrap">{o.totalAmount === null ? "Não informado" : money(o.totalAmount)}</td><td className="whitespace-nowrap">{o.invoicedAmount === null ? "Não informado" : money(o.invoicedAmount)}</td><td className="whitespace-nowrap">{money(o.openBalance)}</td><td>{orderLabels[o.status]}</td></tr>)}
       </FinancialTable>
       <ActualCostsTable costs={actualCosts} reviewIndex={state.reviewIndex} onReview={onReview} />
     </div>

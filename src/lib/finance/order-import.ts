@@ -1,3 +1,4 @@
+import { orderReportFields, readReportFields } from "./sankhya-report-fields";
 import type { FinanceData, PurchaseOrder } from "./types";
 import type { FinanceRepository } from "./repository";
 import { normalizeFinanceData, purchaseOrderKey } from "./calculations";
@@ -21,7 +22,7 @@ function identifier(value: unknown) {
   return text(value);
 }
 const content = (order: PurchaseOrder) => JSON.stringify([
-  order.projectCode, order.number, order.objective, order.supplier, order.totalAmount, order.invoicedAmount,
+  order.projectCode, order.number, order.reportFields, order.objective, order.supplier, order.totalAmount, order.invoicedAmount,
   order.openBalance, order.status, order.requisitionCode,
   order.sankhya?.items.map((item) => JSON.stringify([item.product, item.objective, item.openBalance, item.requisitionCode])).sort() ?? null,
 ]);
@@ -97,7 +98,9 @@ export function previewOrderImport(workbook: OrderWorkbook, projectCodes: readon
       if (!directExport) for (const sc of data.requisitions) {
         if (sc.projectCode === row.projectCode && sc.convertedOrderNumber === row.number) requisitionCodes.add(sc.code);
       }
+      const reportFields = readReportFields(orderReportFields, group.map((item) => item.values), workbook.date1904);
       const order: PurchaseOrder = {
+        ...(reportFields ? { reportFields } : {}),
         number: row.number, projectCode: row.projectCode,
         objective: [...new Set(items.map((item) => item.objective).filter(Boolean))].sort().join("\n\n"),
         supplier: [...suppliers][0], totalAmount: null, invoicedAmount: null, openBalance: total,

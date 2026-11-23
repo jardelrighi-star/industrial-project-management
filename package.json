@@ -17,7 +17,8 @@
     "pako": "1.0.11",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "saxes": "5.0.1"
+    "saxes": "5.0.1",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "4.3.3",

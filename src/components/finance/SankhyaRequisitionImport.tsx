@@ -30,7 +30,7 @@ export default function SankhyaRequisitionImport({ projectCodes, repository, onI
     const id = ++request.current;
     setBusy("reading"); setPreview(null); setError(""); setNotice(""); setPage(0); setIssuesOnly(false);
     try {
-      if (!file.name.toLowerCase().endsWith(".xlsx")) throw new Error("Selecione um arquivo Excel .xlsx.");
+      if (!/\.xlsx?$/i.test(file.name)) throw new Error("Selecione um arquivo Excel .xls ou .xlsx.");
       if (file.size > 30 * 1024 * 1024) throw new Error("O arquivo excede o limite de 30 MB.");
       const workbook = await readRequisitionWorkbook(await file.arrayBuffer(), file.name);
       const next = previewRequisitionImport(workbook, projectCodes, await repository.load(), new Date().toISOString());
@@ -65,11 +65,11 @@ export default function SankhyaRequisitionImport({ projectCodes, repository, onI
   return <section className="rounded-xl border bg-white p-5 shadow-sm" aria-label="Importação de SCs Sankhya">
     <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white">{open ? "Recolher importação de SCs" : "Importar SCs do Sankhya"}</button>
     {open && <div className="mt-4 space-y-4">
-      <p className="text-sm text-slate-600">Selecione SC_s_Pendentes.xlsx do Sankhya ou o Painel Capex com a aba SC PENDENTE. O código de projeto deve corresponder ao cadastro. Na exportação do Sankhya, os itens de cada SC são somados pelo campo Vlr Pendente.</p>
+      <p className="text-sm text-slate-600">Selecione SC_s_Pendentes do Sankhya ou o Painel Capex com a aba SC PENDENTE. O código de projeto deve corresponder ao cadastro. Na exportação do Sankhya, os itens de cada SC são somados pelo campo Vlr Pendente.</p>
       <p className="text-sm text-slate-600">Confirmada = Sim: aprovada e compromete orçamento se não estiver vinculada a pedido. Confirmada = Não: planejada, sem compromisso financeiro. O projeto precisa ter orçamento cadastrado.</p>
       <p className="text-xs text-slate-500">Novas SCs serão incluídas; alterações de SCs já importadas serão apresentadas para atualização. SCs ausentes neste arquivo serão mantidas. A importação não altera pedidos nem custos realizados.</p>
-      <label className="block text-sm font-medium">Arquivo de SCs (.xlsx)
-        <input type="file" accept=".xlsx" disabled={busy !== null} className="mt-2 block w-full rounded border p-2 text-sm" onChange={(event) => { void select(event.target.files?.[0]); event.target.value = ""; }} />
+      <label className="block text-sm font-medium">Arquivo de SCs (.xls ou .xlsx)
+        <input type="file" accept=".xls,.xlsx" disabled={busy !== null} className="mt-2 block w-full rounded border p-2 text-sm" onChange={(event) => { void select(event.target.files?.[0]); event.target.value = ""; }} />
       </label>
       {busy === "reading" && <p role="status">Lendo SCs e preparando a prévia…</p>}
       {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
