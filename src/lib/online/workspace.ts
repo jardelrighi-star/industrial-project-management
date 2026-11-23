@@ -1,5 +1,6 @@
 import { FINANCE_KEY, PROJECT_KEY } from "../coordinated-storage";
 import { actualCostReviewIdentity, indexActualCostReviews, reconcileActualCostReviews, recordActualCostReviews, type ActualCostReviewTarget } from "../finance/actual-cost-review";
+import { emptyFinanceData } from "../finance/calculations";
 import { LocalStorageFinanceRepository } from "../finance/repository";
 import { loadScOrderForecasts, saveScOrderForecast, SC_ORDER_FORECAST_KEY, scsAwaitingOrders } from "../finance/sc-order-forecast";
 import { loadScContracts, saveScContract, SC_CONTRACT_KEY } from "../finance/sc-contract";
@@ -79,6 +80,20 @@ function record(value: unknown): Record<string, unknown> {
 function string(value: unknown, max = 4000): string {
   if (typeof value !== "string" || value.length > max) throw new OnlineError(400, "Campo inválido.");
   return value;
+}
+
+export function resetWorkspaceData(member: Member, state: WorkspaceState, version: unknown): WorkspacePayload {
+  if (member.role !== "admin") throw new OnlineError(403, "Apenas administradores podem limpar os dados da carteira.");
+  if (version !== state.version) throw new OnlineError(409, "A carteira mudou. Confira os dados e inicie a limpeza novamente.");
+  const procurement = loadProcurementPlan(memoryStorage(state.payload));
+  return {
+    ...state.payload,
+    [PROJECT_KEY]: JSON.stringify([]),
+    [FINANCE_KEY]: financeStorage(emptyFinanceData()),
+    [PROCUREMENT_PLAN_KEY]: JSON.stringify({ types: procurement.types, purchases: [] }),
+    [SC_ORDER_FORECAST_KEY]: JSON.stringify([]),
+    [SC_CONTRACT_KEY]: JSON.stringify([]),
+  };
 }
 
 export async function replaceWorkspace(member: Member, state: WorkspaceState, input: Record<string, unknown>) {

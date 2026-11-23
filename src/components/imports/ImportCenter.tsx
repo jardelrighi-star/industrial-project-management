@@ -7,7 +7,8 @@ import SankhyaOrderImport from "../finance/SankhyaOrderImport";
 import PortfolioImport from "./PortfolioImport";
 import { LocalStorageFinanceRepository, type FinanceRepository } from "../../lib/finance/repository";
 import { resetTestData } from "../../lib/reset-test-data";
-import { onlineMode } from "../../lib/online/state";
+import { onlinePost, onlineRequest } from "../../lib/online/client";
+import { onlineMode, type WorkspaceState } from "../../lib/online/state";
 
 const repository = new LocalStorageFinanceRepository();
 
@@ -16,11 +17,21 @@ export default function ImportCenter({ projectCodes, dataRepository = repository
   const [resetError, setResetError] = useState("");
 
   async function clearTestData() {
-    if (resetting || !window.confirm("Limpar todos os projetos, orçamentos, custos realizados, ajustes, SCs, pedidos e históricos deste navegador? Essa ação não pode ser desfeita. Os modelos de mapeamento serão preservados.")) return;
+    if (resetting) return;
+    if (!onlineMode && !window.confirm("Limpar todos os projetos, orçamentos, custos realizados, ajustes, SCs, pedidos e históricos deste navegador? Essa ação não pode ser desfeita. Os modelos de mapeamento serão preservados.")) return;
     setResetting(true);
     setResetError("");
     try {
-      await resetTestData();
+      if (onlineMode) {
+        const { version } = await onlineRequest<WorkspaceState>("/api/workspace");
+        if (!window.confirm("Apagar os dados operacionais da carteira online compartilhada para todos os usuários? Projetos, financeiro, planos de aquisições, previsões, contratos e avaliações serão apagados. Contas, acessos e modelos de importação serão preservados. A limpeza não pode ser desfeita.")) {
+          setResetting(false);
+          return;
+        }
+        await onlinePost("/api/workspace", { action: "reset", version });
+      } else {
+        await resetTestData();
+      }
       window.location.reload();
     } catch (cause) {
       setResetError(cause instanceof Error ? cause.message : "Não foi possível limpar a base de teste.");
@@ -34,13 +45,15 @@ export default function ImportCenter({ projectCodes, dataRepository = repository
         <h1 className="text-2xl font-bold">Central de Importações</h1>
         <p className="mt-2 text-sm text-slate-500">Importações globais para todos os projetos cadastrados, com revisão e confirmação antes da gravação.</p>
       </header>
-      {!onlineMode && <section aria-labelledby="reset-test-title" className="rounded-xl border border-red-200 bg-white p-5">
+      <section aria-labelledby="reset-test-title" className="rounded-xl border border-red-200 bg-white p-5">
         <h2 id="reset-test-title" className="font-semibold">Iniciar teste do zero</h2>
-        <p className="mt-2 text-sm text-slate-600">Apaga projetos, orçamentos, custos realizados e demais registros financeiros e históricos deste navegador. Os modelos de mapeamento são mantidos.</p>
+        <p className="mt-2 text-sm text-slate-600">{onlineMode
+          ? "Apaga os dados operacionais da carteira compartilhada. Contas, acessos, modelos de importação e tipos de aquisição são preservados."
+          : "Apaga projetos, orçamentos, custos realizados e demais registros financeiros e históricos deste navegador. Os modelos de mapeamento são mantidos."}</p>
         <p className="mt-2 text-sm text-slate-600">Depois da limpeza, importe primeiro a carteira de projetos e depois revise os vínculos na prévia de custos realizados.</p>
         <button type="button" disabled={resetting} onClick={() => void clearTestData()} className="mt-4 rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50">{resetting ? "Limpando…" : "Limpar base de teste"}</button>
         {resetError && <p role="alert" className="mt-3 text-sm text-red-700">{resetError}</p>}
-      </section>}
+      </section>
       <PortfolioImport onImported={onImported} />
       <section aria-labelledby="cost-import-title">
         <h2 id="cost-import-title" className="mb-2 text-lg font-bold">Custos realizados · Sankhya</h2>

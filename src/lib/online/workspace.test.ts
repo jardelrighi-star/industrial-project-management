@@ -6,10 +6,11 @@ import { calculateProjectFinancials, emptyFinanceData } from "../finance/calcula
 import { LocalStorageFinanceRepository } from "../finance/repository";
 import { previewCostImport } from "../finance/sankhya-import";
 import { loadScOrderForecasts, SC_ORDER_FORECAST_KEY } from "../finance/sc-order-forecast";
-import { loadScContracts } from "../finance/sc-contract";
+import { loadScContracts, SC_CONTRACT_KEY } from "../finance/sc-contract";
+import { PORTFOLIO_MODELS_KEY } from "../projects/portfolio-model-repository";
 import type { Project } from "../projects/types";
-import { loadProcurementPlan } from "../projects/procurement-plan";
-import { changeProcurement, changeReviews, changeScContract, changeScOrderForecast, replaceWorkspace, scopeWorkspace } from "./workspace";
+import { loadProcurementPlan, PROCUREMENT_PLAN_KEY } from "../projects/procurement-plan";
+import { changeProcurement, changeReviews, changeScContract, changeScOrderForecast, replaceWorkspace, resetWorkspaceData, scopeWorkspace } from "./workspace";
 import { memoryStorage, type WorkspaceState } from "./state";
 import type { Member } from "./server";
 
@@ -156,4 +157,26 @@ test("Purchasing decides contract requirements, and Legal can only schedule requ
   await changeScContract(buyer, state.payload, { ...requirement, required: false, expectedRequired: true });
   await assert.rejects(changeScContract(legal, state.payload, { ...completion, expectedDate: "2027-03-20" }), /não está marcada/);
   assert.equal(loadScContracts(memoryStorage(state.payload))[0].completionDate, "2027-03-20");
+});
+
+test("reset clears operational collections and preserves settings only for a current admin request", async () => {
+  const { state } = fixture();
+  state.payload[PORTFOLIO_MODELS_KEY] = "saved models";
+  state.payload[PROCUREMENT_PLAN_KEY] = JSON.stringify({
+    types: ["Material", "Serviço", "Especial"],
+    purchases: [{ id: "p1", projectCode: "P1", description: "Compra", type: "Especial", estimatedCents: 100 }],
+  });
+  state.payload[SC_ORDER_FORECAST_KEY] = "saved forecasts";
+  state.payload[SC_CONTRACT_KEY] = "saved contracts";
+  assert.throws(() => resetWorkspaceData(manager, state, state.version), /Apenas administradores/);
+  assert.throws(() => resetWorkspaceData(admin, state, state.version - 1), /carteira mudou/);
+  const payload = resetWorkspaceData(admin, state, state.version);
+  assert.equal(payload[PROJECT_KEY], "[]");
+  const storage = memoryStorage(payload);
+  assert.deepEqual(await new LocalStorageFinanceRepository(() => storage).load(), emptyFinanceData());
+  assert.deepEqual(loadProcurementPlan(storage), { types: loadProcurementPlan(memoryStorage(state.payload)).types, purchases: [] });
+  assert.deepEqual(loadScOrderForecasts(storage), []);
+  assert.deepEqual(loadScContracts(storage), []);
+  assert.equal(payload[PORTFOLIO_MODELS_KEY], state.payload[PORTFOLIO_MODELS_KEY]);
+  assert.notEqual(state.payload[PROJECT_KEY], "[]");
 });

@@ -366,7 +366,7 @@ function openDetails(project: Project) {
             financeUnavailable={financialState.status === "error"} />
         )}
         {activeSection === "Relatórios" && loaded && <ActualCostReport />}
-        {activeSection === "Importações" && loaded && <ImportCenter projectCodes={projects.map((project) => project.code)} onImported={() => { setLoadAttempt((value) => value + 1); refreshBudgets(); }} />}
+        {activeSection === "Importações" && loaded && canAdminister && <ImportCenter projectCodes={projects.map((project) => project.code)} onImported={() => { setLoadAttempt((value) => value + 1); refreshBudgets(); }} />}
         {loaded && activeSection === "Dashboard" && (
           <PortfolioDashboard projects={projects} financialState={financialState} actualCostsByProject={actualCostsByProject} />
         )}
