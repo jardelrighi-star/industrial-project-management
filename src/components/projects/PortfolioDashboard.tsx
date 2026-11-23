@@ -209,30 +209,30 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
         </label>
       </div>
     </div>
-    <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-4">
-      <div className="rounded-xl border bg-white p-5 shadow-sm">
+    <section className="mb-6 grid grid-cols-2 gap-2 sm:gap-4 2xl:grid-cols-4">
+      <div className="min-w-0 rounded-xl border bg-white p-3 sm:p-5 shadow-sm">
         <p className="text-sm text-slate-500">Orçamento original aprovado</p>
-        <p className="mt-3 text-lg font-semibold">{budget}</p>
+        <p className="mt-2 text-base font-semibold wrap-anywhere sm:mt-3 sm:text-lg">{budget}</p>
         <p className="mt-1 text-xs text-slate-500">{officialAmounts.length} de {visibleProjects.length} projetos com orçamento oficial</p>
       </div>
       {financialCards.map(({ label, total, breakdown }) => <div key={label}
-        className={`rounded-xl border bg-white p-5 shadow-sm ${breakdown ? "flex flex-wrap items-start justify-between gap-x-4 gap-y-2" : ""}`}>
+        className={`min-w-0 rounded-xl border bg-white p-3 sm:p-5 shadow-sm ${breakdown ? "flex flex-wrap items-start justify-between gap-x-4 gap-y-2" : ""}`}>
         <div>
           <p className="text-sm text-slate-500">{label}</p>
-          <p className={`mt-3 text-lg font-semibold ${hasTotals && total !== null ? "text-slate-800" : "text-slate-400"}`}>
+          <p className={`mt-2 text-base font-semibold wrap-anywhere sm:mt-3 sm:text-lg ${hasTotals && total !== null ? "text-slate-800" : "text-slate-400"}`}>
             {hasTotals && total !== null ? money(total) : missingTotal}
           </p>
         </div>
-        {breakdown && <dl aria-label="Composição do comprometido" className="space-y-1 text-xs">
-          {breakdown.map(({ label, amount }) => <div key={label} className="flex justify-between gap-3">
+        {breakdown && <dl aria-label="Composição do comprometido" className="min-w-0 space-y-1 text-xs">
+          {breakdown.map(({ label, amount }) => <div key={label} className="flex flex-wrap justify-between gap-x-2 sm:flex-nowrap sm:gap-3">
             <dt className="text-slate-500">{label}</dt>
-            <dd className="whitespace-nowrap font-semibold tabular-nums">{amount === undefined ? "—" : money(amount)}</dd>
+            <dd className="font-semibold wrap-anywhere tabular-nums sm:whitespace-nowrap">{amount === undefined ? "—" : money(amount)}</dd>
           </div>)}
         </dl>}
       </div>)}
-      <div className="rounded-xl border bg-white p-5 shadow-sm">
+      <div className="min-w-0 rounded-xl border bg-white p-3 sm:p-5 shadow-sm">
         <p className="text-sm text-slate-500">Orçamento planejado</p>
-        <p className={`mt-3 text-lg font-semibold ${validPlannedTotal ? "text-slate-800" : "text-slate-400"}`}>
+        <p className={`mt-2 text-base font-semibold wrap-anywhere sm:mt-3 sm:text-lg ${validPlannedTotal ? "text-slate-800" : "text-slate-400"}`}>
           {validPlannedTotal ? money(plannedTotal) : planning === undefined ? "Carregando…" : "Indisponível"}
         </p>
         <p className={`mt-1 text-xs ${plannedShare !== null && plannedShare > 1 ? "font-semibold text-red-700" : "text-slate-500"}`}>
@@ -240,20 +240,20 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
         </p>
       </div>
     </section>
-    <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-4">
+    <section className="mb-6 grid grid-cols-2 gap-2 sm:gap-4 2xl:grid-cols-4">
       {cards.map(([label, value, detail]) => (label === missingOrderForecastLabel || label === overdueScLabel) ? <button
         key={label} type="button" aria-haspopup="dialog"
         onClick={() => {
           setShowOverduePurchases(label === overdueScLabel);
           detailsDialog.current?.showModal();
         }}
-        className="cursor-pointer rounded-xl border bg-white p-5 text-left shadow-sm hover:border-slate-400 focus-visible:outline-2 focus-visible:outline-offset-2"
+        className="cursor-pointer min-w-0 rounded-xl border bg-white p-3 sm:p-5 text-left shadow-sm hover:border-slate-400 focus-visible:outline-2 focus-visible:outline-offset-2"
       >
         <span className="block text-sm text-slate-500">{label}</span>
-        <span className="my-3 block text-2xl font-bold">{value}</span>
+        <span className="my-2 block text-xl font-bold wrap-anywhere sm:my-3 sm:text-2xl">{value}</span>
         <span className="block text-xs text-slate-400">{detail}</span>
         <span className="mt-2 block text-xs font-medium text-slate-700 underline">{label === overdueScLabel ? "Ver itens do plano em atraso" : "Ver SCs sem previsão"}</span>
-      </button> : <div key={label} className="rounded-xl border bg-white p-5 shadow-sm">
+      </button> : <div key={label} className="min-w-0 rounded-xl border bg-white p-3 sm:p-5 shadow-sm">
         <p className="text-sm text-slate-500">{label}</p>
         {value === null ? <div className="mt-2 h-16 overflow-y-auto text-xs" role="region" aria-label={label} tabIndex={statuses.length > 4 ? 0 : undefined}>
           {statuses.length > 0 ? <dl className="pr-1">
@@ -263,7 +263,7 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
             </div>)}
           </dl> : <p className="text-slate-500">Nenhum projeto no filtro.</p>}
         </div> : <>
-          <p className="my-3 text-2xl font-bold">{value}</p>
+          <p className="my-2 text-xl font-bold wrap-anywhere sm:my-3 sm:text-2xl">{value}</p>
           <p className="text-xs text-slate-400">{detail}</p>
         </>}
       </div>)}
