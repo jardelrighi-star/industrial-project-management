@@ -18,6 +18,7 @@ const money = (cents: number) => (cents / 100).toLocaleString("pt-BR", { style: 
 const percent = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 2 });
 const filterClass = "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm";
 const compare = new Intl.Collator("pt-BR", { numeric: true }).compare;
+const overdueScLabel = "SC em atraso";
 const missingOrderForecastLabel = "SCs sem previsão de pedido";
 type PlanningData = {
   procurement: ReturnType<typeof loadProcurementPlan>;
@@ -38,7 +39,8 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
   const [owner, setOwner] = useState("");
   const [projectCode, setProjectCode] = useState("");
   const [planning, setPlanning] = useState<PlanningData | null>();
-  const overduePurchasesDialog = useRef<HTMLDialogElement>(null);
+  const detailsDialog = useRef<HTMLDialogElement>(null);
+  const [showOverduePurchases, setShowOverduePurchases] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -116,7 +118,7 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
     /^\d{4}-\d{2}-\d{2}$/.test(project.finish) && project.finish < today,
   ).length;
   let overduePurchases: PlannedPurchase[] | undefined;
-  let missingOrderForecastCount: number | null = null;
+  let missingOrderForecasts: ReturnType<typeof scsAwaitingOrders> | undefined;
   let overdueOrderCount: number | null = null;
   if (financialState.status === "ready" && planning && plannedPurchases) {
     const confirmed = new Set(financialState.data.requisitions.map((sc) => scOrderKey(sc.projectCode, sc.code)));
@@ -127,12 +129,12 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
       !confirmed.has(scOrderKey(purchase.projectCode, purchase.scNumber?.trim() ?? "")),
     ));
     const orderForecastDates = new Map(planning.orderForecasts.map((row) => [scOrderKey(row.projectCode, row.scNumber), row.forecastDate]));
-    missingOrderForecastCount = 0;
+    missingOrderForecasts = [];
     overdueOrderCount = 0;
     for (const sc of scsAwaitingOrders(financialState.data)) {
       if (!visibleCodes.has(sc.projectCode)) continue;
       const date = orderForecastDates.get(scOrderKey(sc.projectCode, sc.code));
-      if (!date) missingOrderForecastCount++;
+      if (!date) missingOrderForecasts.push(sc);
       else if (date < today) overdueOrderCount++;
     }
   }
@@ -146,8 +148,8 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
     ["Projetos cadastrados", visibleProjects.length, hasFilter ? "No filtro selecionado" : "Carteira total"],
     ["Status dos projetos", null, null],
     ["Projetos atrasados", overdueCount, "Prazo planejado vencido"],
-    ["SC em atraso", overdueScValue, "Contratações com abertura da SC vencida"],
-    [missingOrderForecastLabel, missingOrderForecastCount ?? pendingStatus, "Solicitações ainda sem pedido e sem data prevista"],
+    [overdueScLabel, overdueScValue, "Contratações com abertura da SC vencida"],
+    [missingOrderForecastLabel, missingOrderForecasts?.length ?? pendingStatus, "Solicitações ainda sem pedido e sem data prevista"],
     ["Contratos sem previsão de conclusão", missingContractForecastCount ?? contractStatus, "SCs marcadas como necessitando contrato"],
     ["Pedidos em atraso", overdueOrderCount ?? pendingStatus, "SCs sem pedido com previsão vencida"],
     ["Contratos em atraso", overdueContractCount ?? contractStatus, "Contratos necessários com previsão vencida"],
@@ -227,15 +229,18 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
       </div>
     </section>
     <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-4">
-      {cards.map(([label, value, detail]) => label === missingOrderForecastLabel ? <button
+      {cards.map(([label, value, detail]) => (label === missingOrderForecastLabel || label === overdueScLabel) ? <button
         key={label} type="button" aria-haspopup="dialog"
-        onClick={() => overduePurchasesDialog.current?.showModal()}
+        onClick={() => {
+          setShowOverduePurchases(label === overdueScLabel);
+          detailsDialog.current?.showModal();
+        }}
         className="cursor-pointer rounded-xl border bg-white p-5 text-left shadow-sm hover:border-slate-400 focus-visible:outline-2 focus-visible:outline-offset-2"
       >
         <span className="block text-sm text-slate-500">{label}</span>
         <span className="my-3 block text-2xl font-bold">{value}</span>
         <span className="block text-xs text-slate-400">{detail}</span>
-        <span className="mt-2 block text-xs font-medium text-slate-700 underline">Ver itens do plano em atraso</span>
+        <span className="mt-2 block text-xs font-medium text-slate-700 underline">{label === overdueScLabel ? "Ver itens do plano em atraso" : "Ver SCs sem previsão"}</span>
       </button> : <div key={label} className="rounded-xl border bg-white p-5 shadow-sm">
         <p className="text-sm text-slate-500">{label}</p>
         {value === null ? <div className="mt-2 h-16 overflow-y-auto text-xs" role="region" aria-label={label} tabIndex={statuses.length > 4 ? 0 : undefined}>
@@ -251,15 +256,17 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
         </>}
       </div>)}
     </section>
-    <dialog ref={overduePurchasesDialog} aria-labelledby="overdue-purchases-heading"
+    <dialog ref={detailsDialog} aria-labelledby="overdue-purchases-heading"
       className="m-auto max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-w-2xl overflow-y-auto rounded-xl border bg-white p-6 shadow-xl backdrop:bg-slate-950/60">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="overdue-purchases-heading" className="text-lg font-bold">Itens do Plano de Aquisições em atraso</h2>
+        <h2 id="overdue-purchases-heading" className="text-lg font-bold">
+          {showOverduePurchases ? "Itens do Plano de Aquisições em atraso" : missingOrderForecastLabel}
+        </h2>
         <form method="dialog">
           <button type="submit" className="rounded-lg border px-3 py-2 text-sm hover:bg-slate-50">Fechar</button>
         </form>
       </div>
-      {overduePurchases === undefined ? <p className="mt-4 text-sm text-slate-600">{pendingStatus}</p>
+      {showOverduePurchases ? (overduePurchases === undefined ? <p className="mt-4 text-sm text-slate-600">{pendingStatus}</p>
         : overduePurchases.length === 0 ? <p className="mt-4 text-sm text-slate-600">Nenhum item com abertura da SC em atraso no filtro atual.</p>
         : <ul className="mt-4 divide-y text-sm">
           {overduePurchases.map((purchase) => <li key={purchase.id} className="break-words py-3">
@@ -270,7 +277,14 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
             </p>
             <p className="mt-1 text-red-700">Abertura da SC prevista para {purchase.scOpeningForecast?.split("-").reverse().join("/")}</p>
           </li>)}
-        </ul>}
+        </ul>) : (missingOrderForecasts === undefined ? <p className="mt-4 text-sm text-slate-600">{pendingStatus}</p>
+        : missingOrderForecasts.length === 0 ? <p className="mt-4 text-sm text-slate-600">Nenhuma SC sem previsão de pedido no filtro atual.</p>
+        : <ul className="mt-4 divide-y text-sm">
+          {missingOrderForecasts.map((sc) => <li key={scOrderKey(sc.projectCode, sc.code)} className="break-words py-3">
+            <p className="font-semibold">SC {sc.code}</p>
+            <p className="mt-1 text-slate-600">Projeto {sc.projectCode}</p>
+          </li>)}
+        </ul>)}
     </dialog>
   </>;
 }
