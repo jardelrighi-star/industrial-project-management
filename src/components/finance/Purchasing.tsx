@@ -156,6 +156,7 @@ export default function Purchasing({ projects, finance, financeUnavailable, lega
           <thead className="bg-slate-50"><tr>
             <th scope="col" className="p-3">Projeto</th>
             <th scope="col" className="p-3">SC</th>
+            {!legal && <th scope="col" className="p-3">Comprador</th>}
             <th scope="col" className="p-3">Objetivo da contratação</th>
             {!legal && <th scope="col" className="p-3">Necessita contrato?</th>}
             <th scope="col" className="p-3">{legal ? "Previsão de conclusão do contrato" : "Previsão de geração do pedido"}</th>
@@ -166,6 +167,7 @@ export default function Purchasing({ projects, finance, financeUnavailable, lega
             return <tr key={key} className="border-t align-top">
               <td className="p-3">{sc.projectCode} - {projectNames.get(sc.projectCode)}</td>
               <th scope="row" className="p-3 font-medium">{sc.code}</th>
+              {!legal && <td className="p-3">{sc.reportFields?.Comprador?.join(", ") || "Não informado"}</td>}
               <td className="max-w-sm whitespace-pre-wrap break-words p-3">{sc.objective || "—"}<SankhyaReportDetails fields={sc.reportFields} /></td>
               {!legal && <td className="p-3"><ContractRequirementField sc={sc} initialRequired={contract?.required ?? null} /></td>}
               <td className="p-3"><ForecastField sc={sc} initialDate={(legal ? contract?.completionDate : dates.get(key)) ?? null} legal={legal} /></td>
