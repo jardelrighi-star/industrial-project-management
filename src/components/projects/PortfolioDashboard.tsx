@@ -19,6 +19,7 @@ const percent = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFracti
 const filterClass = "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base max-md:min-h-11 md:text-sm";
 const compare = new Intl.Collator("pt-BR", { numeric: true }).compare;
 const overdueScLabel = "SC em atraso";
+const overdueContractsLabel = "Contratos em atraso";
 const missingOrderForecastLabel = "SCs sem previsão de pedido";
 type PlanningData = {
   procurement: ReturnType<typeof loadProcurementPlan>;
@@ -41,7 +42,7 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
   const [projectCode, setProjectCode] = useState("");
   const [planning, setPlanning] = useState<PlanningData | null>();
   const detailsDialog = useRef<HTMLDialogElement>(null);
-  const [showOverduePurchases, setShowOverduePurchases] = useState(false);
+  const [detailsLabel, setDetailsLabel] = useState(missingOrderForecastLabel);
 
   useEffect(() => {
     let active = true;
@@ -144,7 +145,12 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
   }
   const requiredContracts = planning?.contracts.filter((contract) => visibleCodes.has(contract.projectCode) && contract.required);
   const missingContractForecastCount = requiredContracts?.filter((contract) => !contract.completionDate).length;
-  const overdueContractCount = requiredContracts?.filter((contract) => contract.completionDate && contract.completionDate < today).length;
+  const overdueContracts = requiredContracts?.filter((contract) => contract.completionDate && contract.completionDate < today)
+    .sort((a, b) => compare(a.completionDate ?? "", b.completionDate ?? ""));
+  const contractProjects = new Map(visibleProjects.map((project) => [project.code, project.name]));
+  const contractDescriptions = new Map(financialState.status === "ready"
+    ? financialState.data.requisitions.map((sc) => [scOrderKey(sc.projectCode, sc.code), sc.objective.trim()])
+    : []);
   const pendingStatus = planning === null || financialState.status === "error" ? "Indisponível" : "Carregando…";
   const planningStatus = planning === null ? "Indisponível" : "Carregando…";
   const overdueScValue = overduePurchases?.length ?? planningStatus;
@@ -159,7 +165,7 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
   ] as const;
   const legalCards = [
     ["Contratos sem previsão de conclusão", missingContractForecastCount ?? planningStatus, "SCs marcadas como necessitando contrato"],
-    ["Contratos em atraso", overdueContractCount ?? planningStatus, "Contratos necessários com previsão vencida"],
+    [overdueContractsLabel, overdueContracts?.length ?? planningStatus, "Contratos necessários com previsão vencida"],
   ] as const;
   const financialCards = [
     { label: "Custos realizados", total: Number.isSafeInteger(totalActual) ? totalActual : null },
@@ -170,10 +176,15 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
   ];
 
   function renderStatusCard([label, value, detail]: readonly [string, number | string | null, string | null]) {
-    return label === missingOrderForecastLabel || label === overdueScLabel ? <button
+    const actionLabel = {
+      [overdueScLabel]: "Ver itens do plano em atraso",
+      [missingOrderForecastLabel]: "Ver SCs sem previsão",
+      [overdueContractsLabel]: "Ver contratos em atraso",
+    }[label];
+    return actionLabel ? <button
         key={label} type="button" aria-haspopup="dialog"
         onClick={() => {
-          setShowOverduePurchases(label === overdueScLabel);
+          setDetailsLabel(label);
           detailsDialog.current?.showModal();
         }}
         className="cursor-pointer min-w-0 rounded-xl border bg-white p-3 sm:p-5 text-left shadow-sm hover:border-slate-400 focus-visible:outline-2 focus-visible:outline-offset-2"
@@ -181,7 +192,7 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
         <span className="block text-sm text-slate-500">{label}</span>
         <span className="my-2 block text-xl font-bold wrap-anywhere sm:my-3 sm:text-2xl">{value}</span>
         <span className="block text-xs text-slate-400">{detail}</span>
-        <span className="mt-2 block text-xs font-medium text-slate-700 underline">{label === overdueScLabel ? "Ver itens do plano em atraso" : "Ver SCs sem previsão"}</span>
+        <span className="mt-2 block text-xs font-medium text-slate-700 underline">{actionLabel}</span>
       </button> : <div key={label} className="min-w-0 rounded-xl border bg-white p-3 sm:p-5 shadow-sm">
         <p className="text-sm text-slate-500">{label}</p>
         {value === null ? <div className="mt-2 h-16 overflow-y-auto text-xs" role="region" aria-label={label} tabIndex={statuses.length > 4 ? 0 : undefined}>
@@ -289,17 +300,34 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
         {items.map(renderStatusCard)}
       </div>
     </section>)}
-    <dialog ref={detailsDialog} aria-labelledby="overdue-purchases-heading"
+    <dialog ref={detailsDialog} aria-labelledby="dashboard-details-heading"
       className="m-auto h-dvh max-h-dvh w-full max-w-full overflow-y-auto overscroll-contain bg-white px-4 pb-6 shadow-xl backdrop:bg-slate-950/60 md:h-auto md:max-h-[calc(100%-2rem)] md:w-[calc(100%-2rem)] md:max-w-2xl md:rounded-xl md:border md:p-6">
       <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b bg-white py-3 md:static md:flex-wrap md:border-0 md:p-0">
-        <h2 id="overdue-purchases-heading" className="text-lg font-bold">
-          {showOverduePurchases ? "Itens do Plano de Aquisições em atraso" : missingOrderForecastLabel}
+        <h2 id="dashboard-details-heading" className="text-lg font-bold">
+          {detailsLabel === overdueScLabel ? "Itens do Plano de Aquisições em atraso" : detailsLabel}
         </h2>
         <form method="dialog" className="shrink-0">
           <button type="submit" className="rounded-lg border px-3 py-2 text-sm hover:bg-slate-50 max-md:min-h-11">Fechar</button>
         </form>
       </div>
-      {showOverduePurchases ? (overduePurchases === undefined ? <p className="mt-4 text-sm text-slate-600">{planningStatus}</p>
+      {detailsLabel === overdueContractsLabel ? (
+        overdueContracts === undefined ? <p className="mt-4 text-sm text-slate-600">{planningStatus}</p>
+          : overdueContracts.length === 0 ? <p className="mt-4 text-sm text-slate-600">Nenhum contrato em atraso no filtro atual.</p>
+          : <ul className="mt-4 divide-y text-sm">
+            {overdueContracts.map((contract) => {
+              const key = scOrderKey(contract.projectCode, contract.scNumber);
+              const description = contractDescriptions.get(key);
+              return <li key={key} className="break-words py-3">
+                <p className="font-semibold">SC {contract.scNumber}</p>
+                <p className="mt-1 text-slate-600">Projeto {contract.projectCode} · {contractProjects.get(contract.projectCode)}</p>
+                {description && <p className="mt-1 whitespace-pre-wrap">{description}</p>}
+                <p className="mt-1 text-red-700">Conclusão prevista para{" "}
+                  <time dateTime={contract.completionDate}>{contract.completionDate?.split("-").reverse().join("/")}</time>
+                </p>
+              </li>;
+            })}
+          </ul>
+      ) : detailsLabel === overdueScLabel ? (overduePurchases === undefined ? <p className="mt-4 text-sm text-slate-600">{planningStatus}</p>
         : overduePurchases.length === 0 ? <p className="mt-4 text-sm text-slate-600">Nenhum item com abertura da SC em atraso no filtro atual.</p>
         : <ul className="mt-4 divide-y text-sm">
           {overduePurchases.map((purchase) => <li key={purchase.id} className="break-words py-3">
