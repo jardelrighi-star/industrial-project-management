@@ -154,8 +154,10 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
     ["Projetos atrasados", overdueCount, "Prazo planejado vencido"],
     [overdueScLabel, overdueScValue, "Contratações sem SC vinculada e com prazo de abertura vencido"],
     [missingOrderForecastLabel, missingOrderForecasts?.length ?? pendingStatus, "Solicitações ainda sem pedido e sem data prevista"],
-    ["Contratos sem previsão de conclusão", missingContractForecastCount ?? planningStatus, "SCs marcadas como necessitando contrato"],
     ["Pedidos em atraso", overdueOrderCount ?? pendingStatus, "SCs sem pedido com previsão vencida"],
+  ] as const;
+  const legalCards = [
+    ["Contratos sem previsão de conclusão", missingContractForecastCount ?? planningStatus, "SCs marcadas como necessitando contrato"],
     ["Contratos em atraso", overdueContractCount ?? planningStatus, "Contratos necessários com previsão vencida"],
   ] as const;
   const financialCards = [
@@ -267,6 +269,16 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
           <p className="text-xs text-slate-400">{detail}</p>
         </>}
       </div>)}
+    </section>
+    <section aria-labelledby="dashboard-legal-heading" className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-3 sm:p-4">
+      <h2 id="dashboard-legal-heading" className="mb-3 text-base font-semibold text-blue-950">Jurídico</h2>
+      <div className="grid grid-cols-2 gap-2 sm:gap-4">
+        {legalCards.map(([label, value, detail]) => <div key={label} className="min-w-0 rounded-xl border border-blue-200 bg-white p-3 shadow-sm sm:p-5">
+          <p className="text-sm text-slate-500">{label}</p>
+          <p className="my-2 text-xl font-bold wrap-anywhere sm:my-3 sm:text-2xl">{value}</p>
+          <p className="text-xs text-slate-500">{detail}</p>
+        </div>)}
+      </div>
     </section>
     <dialog ref={detailsDialog} aria-labelledby="overdue-purchases-heading"
       className="m-auto h-dvh max-h-dvh w-full max-w-full overflow-y-auto overscroll-contain bg-white px-4 pb-6 shadow-xl backdrop:bg-slate-950/60 md:h-auto md:max-h-[calc(100%-2rem)] md:w-[calc(100%-2rem)] md:max-w-2xl md:rounded-xl md:border md:p-6">
