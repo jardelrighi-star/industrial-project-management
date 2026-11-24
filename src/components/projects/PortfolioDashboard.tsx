@@ -149,7 +149,6 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
   const planningStatus = planning === null ? "Indisponível" : "Carregando…";
   const overdueScValue = overduePurchases?.length ?? planningStatus;
   const cards = [
-    ["Projetos cadastrados", visibleProjects.length, hasFilter ? "No filtro selecionado" : "Carteira total"],
     ["Status dos projetos", null, null],
     ["Projetos atrasados", overdueCount, "Prazo planejado vencido"],
     [overdueScLabel, overdueScValue, "Contratações sem SC vinculada e com prazo de abertura vencido"],
@@ -274,6 +273,11 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
       </div>
     </section>
     <section className="mb-6 grid grid-cols-2 gap-2 sm:gap-4 2xl:grid-cols-4">
+      <div className="min-w-0 rounded-xl border border-red-800 bg-red-700 p-3 text-white shadow-sm sm:p-5">
+        <p className="text-sm font-medium">Projetos cadastrados</p>
+        <p className="my-2 text-xl font-bold wrap-anywhere sm:my-3 sm:text-2xl">{visibleProjects.length}</p>
+        <p className="text-xs text-red-50">{hasFilter ? "No filtro selecionado" : "Carteira total"}</p>
+      </div>
       {cards.map(renderStatusCard)}
     </section>
     {[
