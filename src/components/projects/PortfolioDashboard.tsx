@@ -153,6 +153,8 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
     ["Status dos projetos", null, null],
     ["Projetos atrasados", overdueCount, "Prazo planejado vencido"],
     [overdueScLabel, overdueScValue, "Contratações sem SC vinculada e com prazo de abertura vencido"],
+  ] as const;
+  const purchasingCards = [
     [missingOrderForecastLabel, missingOrderForecasts?.length ?? pendingStatus, "Solicitações ainda sem pedido e sem data prevista"],
     ["Pedidos em atraso", overdueOrderCount ?? pendingStatus, "SCs sem pedido com previsão vencida"],
   ] as const;
@@ -167,6 +169,35 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
       { label: "Pedidos", amount: committed?.uninvoicedOrderBalance },
     ] },
   ];
+
+  function renderStatusCard([label, value, detail]: readonly [string, number | string | null, string | null]) {
+    return label === missingOrderForecastLabel || label === overdueScLabel ? <button
+        key={label} type="button" aria-haspopup="dialog"
+        onClick={() => {
+          setShowOverduePurchases(label === overdueScLabel);
+          detailsDialog.current?.showModal();
+        }}
+        className="cursor-pointer min-w-0 rounded-xl border bg-white p-3 sm:p-5 text-left shadow-sm hover:border-slate-400 focus-visible:outline-2 focus-visible:outline-offset-2"
+      >
+        <span className="block text-sm text-slate-500">{label}</span>
+        <span className="my-2 block text-xl font-bold wrap-anywhere sm:my-3 sm:text-2xl">{value}</span>
+        <span className="block text-xs text-slate-400">{detail}</span>
+        <span className="mt-2 block text-xs font-medium text-slate-700 underline">{label === overdueScLabel ? "Ver itens do plano em atraso" : "Ver SCs sem previsão"}</span>
+      </button> : <div key={label} className="min-w-0 rounded-xl border bg-white p-3 sm:p-5 shadow-sm">
+        <p className="text-sm text-slate-500">{label}</p>
+        {value === null ? <div className="mt-2 h-16 overflow-y-auto text-xs" role="region" aria-label={label} tabIndex={statuses.length > 4 ? 0 : undefined}>
+          {statuses.length > 0 ? <dl className="pr-1">
+            {statuses.map(([status, count]) => <div key={status} className="flex justify-between gap-2">
+              <dt className="text-slate-600">{status}</dt>
+              <dd className="font-semibold tabular-nums">{count}</dd>
+            </div>)}
+          </dl> : <p className="text-slate-500">Nenhum projeto no filtro.</p>}
+        </div> : <>
+          <p className="my-2 text-xl font-bold wrap-anywhere sm:my-3 sm:text-2xl">{value}</p>
+          <p className="text-xs text-slate-400">{detail}</p>
+        </>}
+      </div>;
+  }
 
   return <>
     <header className="mb-5 flex flex-wrap items-center justify-between gap-4 md:mb-8">
@@ -243,43 +274,17 @@ export default function PortfolioDashboard({ projects, financialState, actualCos
       </div>
     </section>
     <section className="mb-6 grid grid-cols-2 gap-2 sm:gap-4 2xl:grid-cols-4">
-      {cards.map(([label, value, detail]) => (label === missingOrderForecastLabel || label === overdueScLabel) ? <button
-        key={label} type="button" aria-haspopup="dialog"
-        onClick={() => {
-          setShowOverduePurchases(label === overdueScLabel);
-          detailsDialog.current?.showModal();
-        }}
-        className="cursor-pointer min-w-0 rounded-xl border bg-white p-3 sm:p-5 text-left shadow-sm hover:border-slate-400 focus-visible:outline-2 focus-visible:outline-offset-2"
-      >
-        <span className="block text-sm text-slate-500">{label}</span>
-        <span className="my-2 block text-xl font-bold wrap-anywhere sm:my-3 sm:text-2xl">{value}</span>
-        <span className="block text-xs text-slate-400">{detail}</span>
-        <span className="mt-2 block text-xs font-medium text-slate-700 underline">{label === overdueScLabel ? "Ver itens do plano em atraso" : "Ver SCs sem previsão"}</span>
-      </button> : <div key={label} className="min-w-0 rounded-xl border bg-white p-3 sm:p-5 shadow-sm">
-        <p className="text-sm text-slate-500">{label}</p>
-        {value === null ? <div className="mt-2 h-16 overflow-y-auto text-xs" role="region" aria-label={label} tabIndex={statuses.length > 4 ? 0 : undefined}>
-          {statuses.length > 0 ? <dl className="pr-1">
-            {statuses.map(([status, count]) => <div key={status} className="flex justify-between gap-2">
-              <dt className="text-slate-600">{status}</dt>
-              <dd className="font-semibold tabular-nums">{count}</dd>
-            </div>)}
-          </dl> : <p className="text-slate-500">Nenhum projeto no filtro.</p>}
-        </div> : <>
-          <p className="my-2 text-xl font-bold wrap-anywhere sm:my-3 sm:text-2xl">{value}</p>
-          <p className="text-xs text-slate-400">{detail}</p>
-        </>}
-      </div>)}
+      {cards.map(renderStatusCard)}
     </section>
-    <section aria-labelledby="dashboard-legal-heading" className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-3 sm:p-4">
-      <h2 id="dashboard-legal-heading" className="mb-3 text-base font-semibold text-blue-950">Jurídico</h2>
-      <div className="grid grid-cols-2 gap-2 sm:gap-4">
-        {legalCards.map(([label, value, detail]) => <div key={label} className="min-w-0 rounded-xl border border-blue-200 bg-white p-3 shadow-sm sm:p-5">
-          <p className="text-sm text-slate-500">{label}</p>
-          <p className="my-2 text-xl font-bold wrap-anywhere sm:my-3 sm:text-2xl">{value}</p>
-          <p className="text-xs text-slate-500">{detail}</p>
-        </div>)}
+    {[
+      { id: "dashboard-purchasing-heading", title: "Compras", items: purchasingCards },
+      { id: "dashboard-legal-heading", title: "Jurídico", items: legalCards },
+    ].map(({ id, title, items }) => <section key={id} aria-labelledby={id} className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-3 sm:p-4">
+      <h2 id={id} className="mb-3 text-base font-semibold text-blue-950">{title}</h2>
+      <div className="grid grid-cols-2 gap-2 sm:gap-4 [&>*]:border-blue-200">
+        {items.map(renderStatusCard)}
       </div>
-    </section>
+    </section>)}
     <dialog ref={detailsDialog} aria-labelledby="overdue-purchases-heading"
       className="m-auto h-dvh max-h-dvh w-full max-w-full overflow-y-auto overscroll-contain bg-white px-4 pb-6 shadow-xl backdrop:bg-slate-950/60 md:h-auto md:max-h-[calc(100%-2rem)] md:w-[calc(100%-2rem)] md:max-w-2xl md:rounded-xl md:border md:p-6">
       <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b bg-white py-3 md:static md:flex-wrap md:border-0 md:p-0">
