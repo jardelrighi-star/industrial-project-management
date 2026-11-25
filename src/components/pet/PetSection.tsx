@@ -5,6 +5,7 @@ import { onlinePost, onlineRequest } from "../../lib/online/client";
 import { onlineMode } from "../../lib/online/state";
 import { changePetDocuments, fieldVisible, maxPeople, PET_KEY, readPetDocuments, validateTopic,
   type Answer, type Answers, type PetDocument, type Signer } from "../../lib/pet/documents";
+import { downloadPetPdf } from "../../lib/pet/pdf";
 import { petTopics, type Field } from "../../lib/pet/form";
 import { LocalStorageProjectRepository } from "../../lib/projects/repository";
 import type { Project } from "../../lib/projects/types";
@@ -96,6 +97,7 @@ export default function PetSection({ projects }: { projects: readonly Project[] 
   const [draft, setDraft] = useState<{ id: string; step: number; answers: Answers } | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const errorAlert = useRef<HTMLDivElement>(null);
   const stepHeading = useRef<HTMLHeadingElement>(null);
@@ -132,6 +134,18 @@ export default function PetSection({ projects }: { projects: readonly Project[] 
     if (draft && Object.keys(draft.answers).length && !window.confirm("Sair e descartar o preenchimento desta etapa?")) return;
     setDraft(null);
     setError("");
+  }
+
+  async function generatePdf(document: PetDocument) {
+    setGeneratingPdf(true);
+    setError("");
+    try {
+      await downloadPetPdf(document);
+    } catch {
+      setError("Não foi possível gerar o PDF. Tente novamente.");
+    } finally {
+      setGeneratingPdf(false);
+    }
   }
 
   async function advance(event: FormEvent<HTMLFormElement>) {
@@ -210,7 +224,12 @@ export default function PetSection({ projects }: { projects: readonly Project[] 
     {!draft && current && <section className="space-y-4 rounded-xl border bg-white p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <button type="button" className={secondaryClass} onClick={() => setSelected(null)}>Voltar à lista</button>
-        {!current.ending && <button type="button" className={primaryClass} onClick={() => start(14)}>Encerrar</button>}
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className={secondaryClass} disabled={generatingPdf} onClick={() => { void generatePdf(current); }}>
+            {generatingPdf ? "Gerando PDF…" : "Gerar PDF"}
+          </button>
+          {!current.ending && <button type="button" className={primaryClass} onClick={() => start(14)}>Encerrar</button>}
+        </div>
       </div>
       <h2 className="text-xl font-semibold wrap-anywhere">PET {String(current.opening.number)}</h2>
       <p className="font-medium text-blue-900">{current.ending?.cancelled === "Sim" ? "Cancelada" : current.ending ? "Encerrada" : "Salva · aguardando encerramento"}</p>
