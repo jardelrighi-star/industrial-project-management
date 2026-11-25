@@ -112,7 +112,7 @@ export function validateTopic(step: number, answers: Record<string, unknown>): A
   return result;
 }
 
-export function changePetDocuments(documents: PetDocument[], request: unknown, actorId: string, admin: boolean) {
+export function changePetDocuments(documents: PetDocument[], request: unknown, actorId: string, admin: boolean, projectCodes: ReadonlySet<string>) {
   const input = asRecord(request);
   const id = input.id;
   if (typeof id !== "string" || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id)) {
@@ -125,9 +125,23 @@ export function changePetDocuments(documents: PetDocument[], request: unknown, a
     const opening: Answers = {};
     for (let step = 1; step <= 13; step++) Object.assign(opening, validateTopic(step, { ...reading, ...opening }));
     if (existing) {
-      if (existing.ownerId === actorId && JSON.stringify(existing.opening) === JSON.stringify(opening)) return documents;
+      const previousOpening = { ...existing.opening };
+      delete previousOpening.number;
+      if (existing.ownerId === actorId && JSON.stringify(previousOpening) === JSON.stringify(opening)) return documents;
       throw new Error("Esta PET já foi salva.");
     }
+    if (typeof opening.project === "string" && !projectCodes.has(opening.project)) {
+      throw new Error("Selecione um projeto disponível no cadastro.");
+    }
+    let lastNumber = BigInt(0);
+    for (const document of documents) {
+      const number = document.opening.number;
+      if (typeof number === "string" && /^\d+$/.test(number)) {
+        const numeric = BigInt(number);
+        if (numeric > lastNumber) lastNumber = numeric;
+      }
+    }
+    opening.number = (lastNumber + BigInt(1)).toString().padStart(6, "0");
     return [...documents, { id, opening, ownerId: actorId, createdAt: now }];
   }
   if (input.action !== "close") throw new Error("Operação de PET inválida.");

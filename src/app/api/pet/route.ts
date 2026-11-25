@@ -1,3 +1,6 @@
+import { hasProjectAccess } from "../../../lib/online/workspace";
+import { memoryStorage } from "../../../lib/online/state";
+import { LocalStorageProjectRepository } from "../../../lib/projects/repository";
 import { commitWorkspace, loadWorkspace, OnlineError, onlineRoute, readRequest, requireMember, response } from "../../../lib/online/server";
 import { changePetDocuments, PET_KEY, readPetDocuments, type PetDocument } from "../../../lib/pet/documents";
 
@@ -22,7 +25,11 @@ export function POST(request: Request) {
     const admin = member.role === "admin";
     let next: PetDocument[];
     try {
-      next = changePetDocuments(documents, input, member.userId, admin);
+      const projects = input.action === "create"
+        ? await new LocalStorageProjectRepository(() => memoryStorage(state.payload)).load()
+        : null;
+      const projectCodes = new Set(projects?.filter((project) => hasProjectAccess(member, project.code)).map((project) => project.code));
+      next = changePetDocuments(documents, input, member.userId, admin, projectCodes);
     } catch (cause) {
       throw new OnlineError(422, cause instanceof Error ? cause.message : "PET inválida.");
     }

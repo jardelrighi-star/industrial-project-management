@@ -6,6 +6,8 @@ import { onlineMode } from "../../lib/online/state";
 import { changePetDocuments, fieldVisible, maxPeople, PET_KEY, readPetDocuments, validateTopic,
   type Answer, type Answers, type PetDocument, type Signer } from "../../lib/pet/documents";
 import { petTopics, type Field } from "../../lib/pet/form";
+import { LocalStorageProjectRepository } from "../../lib/projects/repository";
+import type { Project } from "../../lib/projects/types";
 import { withStorageWriteLock } from "../../lib/storage-write-lock";
 import SignaturePad, { SignatureLines } from "./SignaturePad";
 
@@ -88,7 +90,7 @@ function ReadAnswer({ value, field }: { value: Answer; field: Field }) {
   </div>)}</div>;
 }
 
-export default function PetSection() {
+export default function PetSection({ projects }: { projects: readonly Project[] }) {
   const [documents, setDocuments] = useState<PetDocument[]>();
   const [selected, setSelected] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ id: string; step: number; answers: Answers } | null>(null);
@@ -145,7 +147,9 @@ export default function PetSection() {
       setBusy(true);
       const request = { action: draft.step === 13 ? "create" : "close", id: draft.id, answers: draft.answers };
       const saved = onlineMode ? await onlinePost<PetDocument[]>("/api/pet", request) : await withStorageWriteLock(async () => {
-        const next = changePetDocuments(readPetDocuments(localStorage.getItem(PET_KEY)), request, "local", true);
+        const registered = request.action === "create" ? await new LocalStorageProjectRepository().load() : null;
+        const projectCodes = new Set(registered?.map((project) => project.code));
+        const next = changePetDocuments(readPetDocuments(localStorage.getItem(PET_KEY)), request, "local", true, projectCodes);
         localStorage.setItem(PET_KEY, JSON.stringify(next));
         return next;
       });
@@ -173,12 +177,23 @@ export default function PetSection() {
       <h2 tabIndex={-1} ref={stepHeading} className="text-lg font-semibold text-blue-900">{draft.step}. {topic.title}</h2>
       <progress className="h-2 w-full accent-blue-700" aria-label="Progresso da PET"
         max={draft.step <= 13 ? 13 : 3} value={draft.step <= 13 ? draft.step : draft.step - 13} />
+      {draft.step === 1 && <p className="text-sm text-slate-600">O número da PET será gerado ao salvar.</p>}
       {topic.statement && <p className="rounded-lg bg-blue-50 p-3 text-sm text-blue-950">{topic.statement}</p>}
       {fields.length === 0 && <p className="text-sm text-slate-600">Este tópico não se aplica à atividade selecionada.</p>}
       <fieldset disabled={busy} className="grid gap-3 sm:grid-cols-2">
         {fields.map((field) => <div key={field.id} className={["textarea", "signature", "people"].includes(field.kind) ? "sm:col-span-2" : "min-w-0"}>
-          <TopicField field={field} value={draft.answers[field.id]}
-            onChange={(value) => setDraft((previous) => previous && ({ ...previous, answers: { ...previous.answers, [field.id]: value } }))} />
+          {field.id === "project" ? <div>
+            <label htmlFor="pet-project" className="block text-sm font-medium">{field.label}</label>
+            <select id="pet-project" className={inputClass} value={String(draft.answers.project ?? "")}
+              onChange={(event) => {
+                const project = event.target.value;
+                setDraft((previous) => previous && ({ ...previous, answers: { ...previous.answers, project } }));
+              }}>
+              <option value="">Sem projeto vinculado</option>
+              {projects.map((project) => <option key={project.code} value={project.code}>{project.code} · {project.name}</option>)}
+            </select>
+          </div> : <TopicField field={field} value={draft.answers[field.id]}
+            onChange={(value) => setDraft((previous) => previous && ({ ...previous, answers: { ...previous.answers, [field.id]: value } }))} />}
         </div>)}
       </fieldset>
       <div className="flex flex-wrap justify-between gap-2 border-t pt-4">

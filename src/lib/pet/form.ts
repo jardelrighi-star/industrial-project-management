@@ -27,7 +27,7 @@ const approvals = (prefix: string) => [
 
 export const petTopics: Record<number, Topic> = {
   1: { title: "Caracterização do trabalho", fields: [
-    text("number", "Nº PET", true), text("workOrder", "Nº OS"), text("project", "Nº Projeto"), decision("apr", "APR"),
+    text("workOrder", "Nº OS"), text("project", "Nº Projeto"), decision("apr", "APR"),
     ...labels("work", ["A quente", "A frio", "Escavações", "Sistemas elétricos", "Radiografia industrial", "Espaço confinado", "Produtos químicos", "Energia armazenada", "Movimentação de cargas", "Temperaturas extremas", "Trabalho em altura", "Trabalho em área classificada"]),
   ] },
   2: { title: "Requisição", fields: [

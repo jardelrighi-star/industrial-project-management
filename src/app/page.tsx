@@ -379,7 +379,7 @@ function openDetails(project: Project) {
           <Purchasing legal projects={projects} finance={financialState.status === "ready" ? financialState.data : undefined}
             financeUnavailable={financialState.status === "error"} />
         )}
-        {activeSection === "PET" && <PetSection />}
+        {activeSection === "PET" && loaded && <PetSection projects={projects} />}
         {activeSection === "Relatórios" && loaded && <ActualCostReport />}
         {activeSection === "Importações" && loaded && canAdminister && <ImportCenter projectCodes={projects.map((project) => project.code)} onImported={() => { setLoadAttempt((value) => value + 1); refreshBudgets(); }} />}
         {loaded && activeSection === "Dashboard" && (
