@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import FinanceProjectPanel from "../components/finance/FinanceProjectPanel";
 import ProcurementPlan from "../components/projects/ProcurementPlan";
+import ConstructionSimulation from "../components/personal/ConstructionSimulation";
 import PetSection from "../components/pet/PetSection";
 import PortfolioDashboard, { type PortfolioFinancialState } from "../components/projects/PortfolioDashboard";
 import Purchasing from "../components/finance/Purchasing";
@@ -308,6 +309,7 @@ function openDetails(project: Project) {
               ["▦", "Dashboard"],
               ["▤", "Projetos"],
               ["▣", "PET"],
+              ["◉", "Pessoal"],
               ["▣", "Compras"],
               ["§", "Jurídico"],
               ["⇩", "Importações"],
@@ -327,7 +329,7 @@ function openDetails(project: Project) {
               <button
                 key={label}
                 onClick={() => {
-                  if (["Dashboard", "Projetos", "Compras", "Jurídico", "Importações", "Reconciliação", "Análise de custos", "Relatórios", "PET"].includes(label)) {
+                  if (["Dashboard", "Projetos", "Compras", "Jurídico", "Importações", "Reconciliação", "Análise de custos", "Relatórios", "PET", "Pessoal"].includes(label)) {
                     setActiveSection(label);
                     setMobileMenuOpen(false);
                     setSelectedProjectCode(null);
@@ -379,6 +381,7 @@ function openDetails(project: Project) {
           <Purchasing legal projects={projects} finance={financialState.status === "ready" ? financialState.data : undefined}
             financeUnavailable={financialState.status === "error"} />
         )}
+        {activeSection === "Pessoal" && <ConstructionSimulation />}
         {activeSection === "PET" && loaded && <PetSection projects={projects} />}
         {activeSection === "Relatórios" && loaded && <ActualCostReport />}
         {activeSection === "Importações" && loaded && canAdminister && <ImportCenter projectCodes={projects.map((project) => project.code)} onImported={() => { setLoadAttempt((value) => value + 1); refreshBudgets(); }} />}
