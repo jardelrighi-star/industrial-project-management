@@ -627,7 +627,8 @@ function openDetails(project: Project) {
           ? financialState.data.budgets.find((budget) => budget.projectCode === selectedProject.code)?.updatedAmount ?? null
           : undefined}
         requisitions={financialState.status === "ready" ? financialState.data.requisitions : undefined}
-        orders={financialState.status === "ready" ? financialState.data.orders : undefined} />
+        orders={financialState.status === "ready" ? financialState.data.orders : undefined}
+        actualCosts={financialState.status === "ready" ? financialState.data.actualCosts : undefined} />
     )}
 
     {activeTab === "Documentação" && (

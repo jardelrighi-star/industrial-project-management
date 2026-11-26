@@ -15,7 +15,7 @@ type HistoryRow = {
   issue?: string;
 };
 
-function costOrderId(cost: ActualCost) {
+export function costOrderId(cost: ActualCost) {
   const references = cost.reportFields?.NF_PEDIDO;
   const id = references?.length === 1 ? references[0].trim() : "";
   return /^[1-9]\d*$/.test(id) ? id : "";

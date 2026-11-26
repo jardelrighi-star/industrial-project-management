@@ -5,7 +5,7 @@ import { LocalStorageFinanceRepository } from "../../lib/finance/repository";
 import { orderRequisitionCodes } from "../../lib/finance/calculations";
 import { loadScContracts, type ScContract } from "../../lib/finance/sc-contract";
 import { loadScOrderForecasts, scOrderKey, type ScOrderForecast } from "../../lib/finance/sc-order-forecast";
-import type { PurchaseOrder, PurchaseRequisition } from "../../lib/finance/types";
+import type { ActualCost, PurchaseOrder, PurchaseRequisition } from "../../lib/finance/types";
 import { projectCalendarDate } from "../../lib/projects/project-date";
 import { onlineMode } from "../../lib/online/state";
 import { readOnlineStorage } from "../../lib/online/client";
@@ -15,7 +15,7 @@ import {
   updatePlannedPurchase, type PlannedPurchase,
 } from "../../lib/projects/procurement-plan";
 
-import { previewProcurementHistory, procurementHistorySignature, saveProcurementHistory } from "../../lib/projects/procurement-history";
+import { costOrderId, previewProcurementHistory, procurementHistorySignature, saveProcurementHistory } from "../../lib/projects/procurement-history";
 
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const percent = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 2 });
@@ -35,11 +35,12 @@ function OpeningForecast({ date, overdue }: { date?: string; overdue: boolean })
   </div>;
 }
 
-export default function ProcurementPlan({ projectCode, budgetCents, requisitions, orders, canManage = true, canReconstruct = canManage }: {
+export default function ProcurementPlan({ projectCode, budgetCents, requisitions, orders, actualCosts, canManage = true, canReconstruct = canManage }: {
   projectCode: string;
   budgetCents?: number | null;
   requisitions?: readonly PurchaseRequisition[];
   orders?: readonly PurchaseOrder[];
+  actualCosts?: readonly ActualCost[];
   canManage?: boolean;
   canReconstruct?: boolean;
 }) {
@@ -209,13 +210,13 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
   const budgetDifference = typeof budgetCents === "number" && validEstimatedTotal ? budgetCents - estimatedTotal : undefined;
   const plannedShare = typeof budgetCents === "number" && budgetCents > 0 && validEstimatedTotal ? estimatedTotal / budgetCents : undefined;
   const scCodes = requisitions && new Set(requisitions.filter((sc) => sc.projectCode === projectCode).map((sc) => sc.code));
-  const balancesByOrder = new Map<string, number | null>();
+  const ordersByNumber = new Map<string, PurchaseOrder | null>();
   const ordersBySc = new Map<string, { order: PurchaseOrder; balance: number }[]>();
   for (const order of orders ?? []) {
     if (order.projectCode !== projectCode) continue;
     const numbers = new Set([order.number, order.sankhya?.internalOrderId]);
     for (const number of numbers) {
-      if (number) balancesByOrder.set(number, balancesByOrder.has(number) ? null : order.openBalance);
+      if (number) ordersByNumber.set(number, ordersByNumber.has(number) ? null : order);
     }
     const itemBalancesBySc = new Map<string, number>();
     for (const item of order.sankhya?.items ?? []) {
@@ -242,21 +243,45 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
     if (linked) {
       const numbers = linked.map(({ order }) => {
         const internalId = order.sankhya?.internalOrderId;
-        return balancesByOrder.get(order.number) === null && internalId && internalId !== order.number
+        return ordersByNumber.get(order.number) === null && internalId && internalId !== order.number
           ? `${order.number} (${internalId})` : order.number;
       });
       const balance = linked.reduce((total, match) => total + match.balance, 0);
-      return { numbers: numbers.join(", "), amount: currency.format(balance / 100), issue: "", automatic: true };
+      const internalIds = linked.flatMap(({ order }) => order.sankhya?.internalOrderId ?? []);
+      return { numbers: numbers.join(", "), amount: currency.format(balance / 100), issue: "", automatic: true, internalIds };
     }
     const query = number?.trim();
-    const balance = query ? balancesByOrder.get(query) : undefined;
-    const issue = balance === null ? "Há mais de um pedido com esse número neste projeto. Informe o número único." :
-      orders && query && balance === undefined ? "Pedido ainda não encontrado no Financeiro deste projeto." : "";
-    return { numbers: query ?? "", amount: typeof balance === "number" ? currency.format(balance / 100) : "—", issue, automatic: false };
+    const order = query ? ordersByNumber.get(query) : undefined;
+    const issue = order === null ? "Há mais de um pedido com esse número neste projeto. Informe o número único." :
+      orders && query && order === undefined ? "Pedido ainda não encontrado no Financeiro deste projeto." : "";
+    const internalId = order?.sankhya?.internalOrderId;
+    return { numbers: query ?? "", amount: order ? currency.format(order.openBalance / 100) : "—",
+      issue, automatic: false, internalIds: internalId ? [internalId] : [] };
+  }
+
+  const costsByOrder = new Map<string, ActualCost[]>();
+  for (const cost of actualCosts ?? []) {
+    if (cost.projectCode !== projectCode) continue;
+    const id = costOrderId(cost);
+    if (!id) continue;
+    const costs = costsByOrder.get(id) ?? [];
+    costs.push(cost);
+    costsByOrder.set(id, costs);
+  }
+
+  function realizedDetails(orderIds: readonly string[]) {
+    const ids = [...new Set(orderIds)].filter((id) => costsByOrder.has(id));
+    const costs = ids.flatMap((id) => costsByOrder.get(id) ?? []);
+    const cents = costs.reduce((sum, cost) => sum + cost.amount, 0);
+    return {
+      amount: costs.length && Number.isSafeInteger(cents) ? currency.format(cents / 100) : "—",
+      ids, lineCount: costs.length, documents: [...new Set(costs.map((cost) => cost.fiscalDocument))].sort(),
+    };
   }
 
   const currentOrder = orderDetails(orderNumber, scNumber);
   const viewedOrder = orderDetails(viewing?.orderNumber, viewing?.scNumber);
+  const viewedRealized = realizedDetails(viewing?.realized ? [viewing.realized.orderId] : viewedOrder.internalIds);
   const forecastDates = new Map(orderForecasts.map((row) => [scOrderKey(row.projectCode, row.scNumber), row.forecastDate]));
   const orderForecastDate = (number?: string) => number ? forecastDates.get(scOrderKey(projectCode, number.trim())) : undefined;
   const contractsBySc = new Map(contracts.map((row) => [scOrderKey(row.projectCode, row.scNumber), row]));
@@ -431,8 +456,9 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
               const missing = !purchase.realized && isMissingSc(purchase.scNumber);
               const linkedOrder = orderDetails(purchase.orderNumber, purchase.scNumber);
               const contract = contractForSc(purchase.scNumber);
+              const realized = realizedDetails(purchase.realized ? [purchase.realized.orderId] : linkedOrder.internalIds);
               return <tr key={purchase.id} className="border-t [&_td]:p-3 [&_td]:align-top">
-                <th scope="row" className="p-3 align-top font-medium break-words">{purchase.title || "Sem título"}{purchase.realized && <span className="block text-xs text-slate-500">Com custo realizado</span>}</th>
+                <th scope="row" className="p-3 align-top font-medium break-words">{purchase.title || "Sem título"}{realized.lineCount > 0 && <span className="block text-xs text-slate-500">Com custo realizado</span>}</th>
                 <td>{purchase.type}</td>
                 <td className="whitespace-nowrap text-right">{purchase.historical ? "—" : currency.format(purchase.estimatedCents / 100)}</td>
                 <td className="whitespace-nowrap"><OpeningForecast date={purchase.scOpeningForecast} overdue={isScOpeningOverdue(purchase, today, missing)} /></td>
@@ -446,7 +472,7 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
                   {purchase.realized ? (purchase.orderNumber || purchase.realized.orderId) : linkedOrder.numbers || "—"}{!purchase.realized && linkedOrder.issue && <span className="sr-only"> ({linkedOrder.issue})</span>}
                 </td>
                 <td className="whitespace-nowrap text-right">{linkedOrder.amount}</td>
-                <td className="whitespace-nowrap text-right">{purchase.realized ? currency.format(purchase.realized.cents / 100) : "—"}</td>
+                <td className="whitespace-nowrap text-right">{realized.amount}</td>
                 <td className="text-right"><button type="button" disabled={formOpen} onClick={() => setViewing(purchase)}
                   aria-label={`Visualizar ${purchase.title || purchase.description}`}
                   className="font-medium text-blue-700 hover:underline disabled:opacity-50">Visualizar</button></td>
@@ -485,10 +511,10 @@ export default function ProcurementPlan({ projectCode, budgetCents, requisitions
           </dd>
         </div>
         <div><dt className="text-slate-500">Saldo do pedido</dt><dd className="mt-1">{viewedOrder.amount}</dd></div>
-        {viewing.realized && <>
-          <div><dt className="text-slate-500">Valor realizado</dt><dd>{currency.format(viewing.realized.cents / 100)}</dd></div>
-          <div><dt className="text-slate-500">Número único do pedido</dt><dd>{viewing.realized.orderId}</dd></div>
-          <div className="sm:col-span-2"><dt className="text-slate-500">Notas fiscais · {viewing.realized.lineCount} lançamentos</dt><dd>{viewing.realized.documents.join(", ")}</dd></div>
+        <div><dt className="text-slate-500">Valor realizado</dt><dd>{viewedRealized.amount}</dd></div>
+        {viewedRealized.lineCount > 0 && <>
+          <div><dt className="text-slate-500">Nº único de pedido</dt><dd>{viewedRealized.ids.join(", ")}</dd></div>
+          <div className="sm:col-span-2"><dt className="text-slate-500">Notas fiscais · {viewedRealized.lineCount} lançamentos</dt><dd>{viewedRealized.documents.join(", ")}</dd></div>
         </>}
       </dl>
       <div className="mt-6 flex justify-end gap-2">
