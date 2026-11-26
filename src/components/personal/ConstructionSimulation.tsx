@@ -8,17 +8,16 @@ const controls = [
   { label: "Recursos a acumular", min: 0, max: 200_000, step: 1_000, initial: 112_000 },
   { label: "Financiamento", min: 0, max: 800_000, step: 1_000, initial: 500_000 },
   { label: "Reserva de emergência separada", min: 0, max: 150_000, step: 1_000, initial: 50_000 },
+  { label: "FGTS", min: 0, max: 300_000, step: 1_000, initial: 0 },
+  { label: "Recursos da venda da casa", min: 0, max: 1_000_000, step: 1_000, initial: 0 },
 ] as const;
 
 const reais = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
-const exactReais = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
 export default function ConstructionSimulation() {
   const [values, setValues] = useState<number[]>(() => controls.map((control) => control.initial));
-  const [ownFunds, setOwnFunds] = useState("");
-  const [base, contingency, savings, financing, reserve] = values;
-  const cash = Math.max(0, Number(ownFunds) || 0);
-  const available = cash + savings + financing - reserve;
+  const [base, contingency, savings, financing, reserve, fgts, sale] = values;
+  const available = fgts + sale + savings + financing - reserve;
   const multiplier = 1 + contingency / 100;
   const cost = base * multiplier;
   const balance = available - cost;
@@ -61,11 +60,7 @@ export default function ConstructionSimulation() {
           <dd className={`mt-1 text-lg font-semibold wrap-anywhere tabular-nums ${index === 2 && amount < 0 ? "text-red-700" : "text-slate-950"}`}>{reais.format(amount)}</dd>
         </div>)}
       </dl>
-      <label htmlFor="construction-own-funds" className="mt-4 block text-sm font-medium text-slate-700">Recursos da venda e do FGTS (R$)</label>
-      <input id="construction-own-funds" type="number" inputMode="decimal" min="0" step="0.01" value={ownFunds}
-        onChange={(event) => setOwnFunds(event.currentTarget.value)}
-        className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 px-3 text-base sm:w-56" />
-      <p className="mt-2 text-sm text-slate-600">Considera {exactReais.format(cash)} da venda e do FGTS. Não considera rendimentos financeiros.</p>
+      <p className="mt-3 text-sm text-slate-600">Não considera rendimentos financeiros.</p>
     </div>
   </section>;
 }
